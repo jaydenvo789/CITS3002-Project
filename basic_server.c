@@ -54,34 +54,44 @@ void parse_message(char *message, Client client )
 {
     if(strstr(message,"INIT"))
     {
-        char *welcome_message = calloc(strlen("WELCOME,") + strlen(client.client_id), sizeof(char))
-        strcpy(welcome_message,"WELCOME,");
-        strcat(welcome_message,client.client_id));
-        send_message(welcome_message, atoi(client.client_id));
+        int bytes_required = strlen("WELCOME,") + strlen(client.client_id) + 1;
+        char *welcome_message = calloc(bytes_required, sizeof(char));
+        if(welcome_message != NULL)
+        {
+            strcpy(welcome_message,"WELCOME,");
+            strcat(welcome_message,client.client_id);
+            send_message(welcome_message, client.client_fd);
+        }
+        else
+        {
+            printf("Cannot allocate %i bytes of memory\n",bytes_required);
+            exit(EXIT_FAILURE);
+        }
     }
 
-    else if(strstr(message,"MOV"))
-    {
-        //Update life of that client
-    }
-
-    else
-    {
-        fprintf(stderr,"Received an unexpected response from player")
-    }
+    // else if(strstr(message,"MOV"))
+    // {
+    //     //Update life of that client
+    // }
+    //
+    // else
+    // {
+    //     fprintf(stderr,"Received an unexpected response from player");
+    // }
 }
 
-Client *connected_clients;
-
 int main (int argc, char *argv[]) {
-    if (argc < 2) {
+    if (argc < 3) {
         fprintf(stderr,"Usage: %s [port]\n",argv[0]);
         exit(EXIT_FAILURE);
     }
 
     int port = atoi(argv[1]);
-
-    int server_fd, client_fd, err, opt_val, client_id;
+    int server_fd, client_fd, err, opt_val;
+    int num_lives = atoi(argv[2]);
+    char client_id[3];
+    int num_clients = 0;
+    Client *connected_clients;
     struct sockaddr_in server, client;
     char *buf;
 
@@ -117,26 +127,39 @@ int main (int argc, char *argv[]) {
         socklen_t client_len = sizeof(client);
         // Will block until a connection is made
         client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
-        client_id = rand() % 900 + 100; //Generate a 3 digit id number
-        Client client = {client_fd,client_id};
         if (client_fd < 0) {
-            fprintf(stderr,"Could not establish new connection\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr,"Could not establish connection with new client\n");
+            continue;
         }
-
+        sprintf(client_id, "%d", rand() % 900 + 100); //Generate a 3 digit id number
+        Client client = {client_fd,num_lives,client_id};
+        num_clients++;
         //Store a connected reference to the client
         if(connected_clients == NULL)
         {
-            continue;
+            connected_clients = calloc(1,sizeof(Client));
+            connected_clients[num_clients-1] = client;
         }
         else
         {
-            continue;
+            connected_clients = realloc(connected_clients,num_clients * sizeof(Client));
+            connected_clients[num_clients-1] = client;
         }
-
+        if(connected_clients == NULL)
+        {
+            printf("Cannot allocate %i bytes of memory\n",num_clients * sizeof(Client));
+            exit(EXIT_FAILURE);
+        }
         while (true) {
             char *response = receive_message(client_fd);
             parse_message(response, client);
+            char welcome_message[BUFFER_SIZE];
+            sprintf(welcome_message,"WELCOME,%d",client.client_id);
+            send_message(welcome_message,client.client_fd);
+            char start_message[BUFFER_SIZE];
+            sprintf(start_message,"START,%i,%i",1,num_lives);
+            printf(start_message);
+            send_message(start_message,client.client_fd);
         }
     }
 }
