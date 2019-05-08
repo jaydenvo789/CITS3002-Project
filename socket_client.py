@@ -8,19 +8,19 @@ class UnexpectedResponseException(Exception):
 def make_move(client_id):
     move = int(input('Select a move:\n 1 - Even\n 2 - Odd\n 3 - Doubles\n 4 - Contains "n" \n Move: '))
     while move != 1 and move != 2 and move != 3 and move != 4:
-        move = input('Invalid input. Please re-enter')
+        move = input('Invalid input. Please re-enter move: ')
     if move == 1:
-        return client_id+",EVEN"
+        return client_id+"MOV,EVEN"
     elif move == 2:
-        return client_id+",ODD"
+        return client_id+"MOV,ODD"
     elif move == 3:
-        return client_id+",DOUB"
+        return client_id+"MOV,DOUB"
     else:
-        dice_number = int(input("Select a number from 1-6"))
+        dice_number = int(input("Select a number from 1-6: "))
         while dice_number < 1 or dice_number > 6:
             print("Value is not between 1-6")
-            dice_number = int(input("Select a number from 1-6"))
-        return client_id+",CON,"+dice_number
+            dice_number = int(input("Select a number from 1-6: "))
+        return client_id+"MOV,CON,"+ str(dice_number)
 
 def recv_all():
     while True:
@@ -58,13 +58,13 @@ try:
       elif game_status.startswith("START"):
           game_status = game_status.split(",")
           num_lives = game_status[2]
-          print("Match with "+ game_status[1] + "players starting")
+          print("Match with "+ game_status[1] + " players starting")
           print("Starting Number of Lives: " + num_lives)
           result = None;
           while result != "ELIM" and result != "VIC":
-              move = make_move()
+              move = make_move(client_id)
               sock.sendall(move.encode())
-              result = sock.rev(16).decode()
+              result = sock.recv(16).decode()
               if result == "PASS":
                 print("You have guessed correctly")
               elif result == "FAIL":

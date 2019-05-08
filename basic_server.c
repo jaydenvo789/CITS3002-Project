@@ -30,6 +30,8 @@ typedef struct
     char *client_id;
 } Client;
 
+typedef enum { ODD, EVEN, C1, C2, C3, C4, C5, C6, DOUB } MOVE;
+
 void send_message(char *message, int destination_fd)
 {
     int err = send(destination_fd, message, strlen(message), 0);
@@ -50,15 +52,18 @@ char* receive_message(int sender_fd)
     return buf;
 }
 
+// Function called by child to interpret message
 void parse_message(char *message, Client client )
 {
+    int enum_value = 10;
+
     if(strstr(message,"INIT"))
     {
         int bytes_required = strlen("WELCOME,") + strlen(client.client_id) + 1;
         char *welcome_message = calloc(bytes_required, sizeof(char));
         if(welcome_message != NULL)
         {
-            strcpy(welcome_message,"WELCOME,");
+            strcpy(welcome_message,"*****WELCOME,");
             strcat(welcome_message,client.client_id);
             send_message(welcome_message, client.client_fd);
         }
@@ -69,15 +74,95 @@ void parse_message(char *message, Client client )
         }
     }
 
-    // else if(strstr(message,"MOV"))
-    // {
-    //     //Update life of that client
-    // }
-    //
-    // else
-    // {
-    //     fprintf(stderr,"Received an unexpected response from player");
-    // }
+    else if(strstr(message,"MOV"))
+    {
+	if (strstr(message,"EVEN"))
+	{
+	    enum_value = 8;
+	}
+
+	if (strstr(message,"ODD"))
+	{
+	    enum_value = 0;
+	}
+
+	if (strstr(message,"DOUB"))
+	{
+	    enum_value = 7;
+	}
+
+	if (strstr(message,"CON"))
+	{
+	    if (strstr(message,"CON,1")) enum_value = 1;
+	    if (strstr(message,"CON,2")) enum_value = 2;
+	    if (strstr(message,"CON,3")) enum_value = 3;
+	    if (strstr(message,"CON,4")) enum_value = 4;
+	    if (strstr(message,"CON,5")) enum_value = 5;
+	    if (strstr(message,"CON,6")) enum_value = 6;
+	}
+    }
+    
+    else
+    {
+        fprintf(stderr,"Received an unexpected response from player");
+    }
+}
+
+void calculate (int dice1, int dice2, int enum_value, Client client)
+{
+    // enumvalues - 0 = Odd, 1-6 = Choice of Dice, 7 = Doubles, 8 = Even
+    bool failed_round = false;
+ 
+    int bytes_required = strlen(client.client_id) + strlen(",XXXX") + 1;
+    char *result_message = calloc(bytes_required, sizeof(char));
+
+    if(result_message != NULL) strcpy(result_message,client.client_id);
+
+    else
+    {
+        printf("Cannot allocate %i bytes of memory\n",bytes_required);
+        exit(EXIT_FAILURE);
+    }      
+
+    if (enum_value < 0 || enum_value > 8)
+    {
+	fprintf(stderr,"Invalid enum value");
+	return;
+    }
+
+    if (enum_value == 0)	// Odd
+    {
+        if ((dice1 + dice2)%2 == 0) failed_round = true;
+    }
+
+    if (enum_value == 7)	// Doubles
+    {
+        if (dice1 != dice2) failed_round = true;
+    }
+
+    if (enum_value == 8)	// Even
+    {
+        if ((dice1 + dice2)%2 == 1) failed_round = true;
+    }
+
+    else 
+    {
+	if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
+    }
+
+    if (failed_round)
+    {
+	strcat(result_message,",FAIL");
+        send_message(result_message, client.client_fd);
+
+        client.num_lives --;
+        if (client.num_lives == 0)
+	{
+	    strcpy(result_message,client.client_id);
+            strcat(result_message,",ELIM");
+            send_message(result_message, client.client_fd);
+        }
+    }
 }
 
 int main (int argc, char *argv[]) {
@@ -132,6 +217,7 @@ int main (int argc, char *argv[]) {
             continue;
         }
         sprintf(client_id, "%d", rand() % 900 + 100); //Generate a 3 digit id number
+// Might create same ID
         Client client = {client_fd,num_lives,client_id};
         num_clients++;
         //Store a connected reference to the client
@@ -153,11 +239,12 @@ int main (int argc, char *argv[]) {
         while (true) {
             char *response = receive_message(client_fd);
             parse_message(response, client);
-            char welcome_message[BUFFER_SIZE];
-            sprintf(welcome_message,"WELCOME,%d",client.client_id);
-            send_message(welcome_message,client.client_fd);
+ //           char welcome_message[BUFFER_SIZE];
+ //           sprintf(welcome_message,"WELCOME,%d",client.client_id);
+ //           send_message(welcome_message,client.client_fd);
             char start_message[BUFFER_SIZE];
             sprintf(start_message,"START,%i,%i",1,num_lives);
+            printf("Starting the game");
             printf(start_message);
             send_message(start_message,client.client_fd);
         }
