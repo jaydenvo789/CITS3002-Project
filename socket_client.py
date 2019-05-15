@@ -31,7 +31,7 @@ def recv_all():
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Connect the socket to the port where the server is listening
-server_address = ('localhost', 4444)
+server_address = ('localhost', 8888)
 print ('connecting to %s port %s' % server_address)
 sock.connect(server_address)
 
@@ -60,20 +60,20 @@ try:
           num_lives = game_status[2]
           print("Match with "+ game_status[1] + " players starting")
           print("Starting Number of Lives: " + num_lives)
-          result = None;
-          while result != "ELIM" and result != "VIC":
+          result = "";
+          while not result.endswith("ELIM") and not result.endswith("VIC"):
               move = make_move(client_id)
               sock.sendall(move.encode())
               result = sock.recv(16).decode()
-              if result == "PASS":
+              if result.endswith("PASS"):
                 print("You have guessed correctly")
-              elif result == "FAIL":
-                  num_lives -= 1
-                  print("You have guessed correctly")
+              elif result.endswith("FAIL"):
+                  num_lives = str(int(num_lives) - 1)
+                  print("You have guessed wrongly")
                   print("Remaining Lives: " + num_lives)
               else:
                   raise UnexpectedResponseException("Unexpected Response "+ result)
-          if result == "ELIM":
+          if result.endswith("ELIM"):
              print("You have been eliminated")
           else:
              print("You are the winner")

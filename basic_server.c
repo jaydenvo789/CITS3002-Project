@@ -31,6 +31,7 @@ typedef struct
 } Client;
 
 typedef enum { ODD, EVEN, C1, C2, C3, C4, C5, C6, DOUB } MOVE;
+int dice1, dice2;
 
 void send_message(char *message, int destination_fd)
 {
@@ -53,9 +54,9 @@ char* receive_message(int sender_fd)
 }
 
 // Function called by child to interpret message
-void parse_message(char *message, Client client )
+int parse_message(char *message, Client client )
 {
-    int enum_value = 10;
+    int enum_value = 10;		// Default, empty value
 
     if(strstr(message,"INIT"))
     {
@@ -66,6 +67,7 @@ void parse_message(char *message, Client client )
             strcpy(welcome_message,"*****WELCOME,");
             strcat(welcome_message,client.client_id);
             send_message(welcome_message, client.client_fd);
+	    printf("Sent welcome message!\n");
         }
         else
         {
@@ -106,6 +108,8 @@ void parse_message(char *message, Client client )
     {
         fprintf(stderr,"Received an unexpected response from player");
     }
+
+    return enum_value;
 }
 
 void calculate (int dice1, int dice2, int enum_value, Client client)
@@ -130,24 +134,28 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
 	return;
     }
 
-    if (enum_value == 0)	// Odd
-    {
-        if ((dice1 + dice2)%2 == 0) failed_round = true;
+    else if (enum_value == 0)	// Odd
+    {	// Fails if even or dice-sum is not greater than 5
+        if ((dice1 + dice2)%2 == 0 || dice1 + dice2 <= 5) failed_round = true;
+	printf("Player chose Odd\n");
     }
 
-    if (enum_value == 7)	// Doubles
+    else if (enum_value == 7)	// Doubles
     {
         if (dice1 != dice2) failed_round = true;
+	printf("Player chose Doubles\n");
     }
 
-    if (enum_value == 8)	// Even
-    {
-        if ((dice1 + dice2)%2 == 1) failed_round = true;
+    else if (enum_value == 8)	// Even
+    {	// Fails if odd or doubles
+        if ((dice1 + dice2)%2 == 1 || dice1 == dice2) failed_round = true;
+	printf("Player chose Even\n");
     }
 
     else 
     {
 	if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
+	printf("Player chose %d\n", enum_value);
     }
 
     if (failed_round)
@@ -155,7 +163,8 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
 	strcat(result_message,",FAIL");
         send_message(result_message, client.client_fd);
 
-        client.num_lives --;
+        client.num_lives = 0;
+        printf("Player has this failed round, lives left: %d\n", client.num_lives);
         if (client.num_lives == 0)
 	{
 	    strcpy(result_message,client.client_id);
@@ -163,11 +172,16 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
             send_message(result_message, client.client_fd);
         }
     }
+    else {
+	strcat(result_message,",PASS");
+        send_message(result_message, client.client_fd);
+	printf("Player has survived... this round\n");
+    }
 }
 
 int main (int argc, char *argv[]) {
     if (argc < 3) {
-        fprintf(stderr,"Usage: %s [port]\n",argv[0]);
+        fprintf(stderr,"Usage: %s [port], [number of lives]\n",argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -244,9 +258,23 @@ int main (int argc, char *argv[]) {
  //           send_message(welcome_message,client.client_fd);
             char start_message[BUFFER_SIZE];
             sprintf(start_message,"START,%i,%i",1,num_lives);
-            printf("Starting the game");
             printf(start_message);
+	    printf("\n");
+	    fflush(stdout);
             send_message(start_message,client.client_fd);
+
+	    while (client.num_lives > 0) {	// Play the game
+		response = "";
+		while (!strstr(response, "MOV")) {	// Wait for move
+		   response = receive_message(client_fd);
+		}
+		dice1 = rand() % 7;
+		dice2 = rand() % 7;
+		int choice = parse_message(response, client);
+		calculate (dice1, dice2, choice, client);
+		printf ("Dice were: %d and %d\n", dice1, dice2);
+	    }
+	    exit(0);
         }
     }
 }
