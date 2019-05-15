@@ -33,9 +33,37 @@ typedef struct
 typedef enum { ODD, EVEN, C1, C2, C3, C4, C5, C6, DOUB } MOVE;
 int dice1, dice2;
 
+char *pad_left(char *message,int width)
+{
+    int message_length = strlen(message);
+    char *padded_message = calloc(1,width+1);
+    //No requried padding
+    if(width == message_length)
+    {
+        return message;
+    }
+    if(padded_message == NULL)
+    {
+        printf("Cannot allocate %i bytes of memory\n",width);
+        exit(EXIT_FAILURE);
+    }
+    memset(padded_message,'0',width-message_length);
+    strcat(padded_message,message);
+    return padded_message;
+}
 void send_message(char *message, int destination_fd)
 {
-    int err = send(destination_fd, message, strlen(message), 0);
+    char buff[BUFFER_SIZE];
+    sprintf(buff,"%d",strlen(message));
+
+    char *message_length = pad_left(buff,4);
+    //Inform Client how much bytes it will need to receive
+    int err = send(destination_fd,message_length, strlen(message_length), 0);
+    if (err < 0){
+        fprintf(stderr,"Client write failed\n");
+        exit(EXIT_FAILURE);
+    }
+    err = send(destination_fd,message,strlen(message),0);
     if (err < 0){
         fprintf(stderr,"Client write failed\n");
         exit(EXIT_FAILURE);
@@ -64,7 +92,7 @@ int parse_message(char *message, Client client )
         char *welcome_message = calloc(bytes_required, sizeof(char));
         if(welcome_message != NULL)
         {
-            strcpy(welcome_message,"*****WELCOME,");
+            strcpy(welcome_message,"WELCOME,");
             strcat(welcome_message,client.client_id);
             send_message(welcome_message, client.client_fd);
 	    printf("Sent welcome message!\n");
@@ -103,7 +131,7 @@ int parse_message(char *message, Client client )
 	    if (strstr(message,"CON,6")) enum_value = 6;
 	}
     }
-    
+
     else
     {
         fprintf(stderr,"Received an unexpected response from player");
@@ -116,7 +144,7 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
 {
     // enumvalues - 0 = Odd, 1-6 = Choice of Dice, 7 = Doubles, 8 = Even
     bool failed_round = false;
- 
+
     int bytes_required = strlen(client.client_id) + strlen(",XXXX") + 1;
     char *result_message = calloc(bytes_required, sizeof(char));
 
@@ -126,7 +154,7 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
     {
         printf("Cannot allocate %i bytes of memory\n",bytes_required);
         exit(EXIT_FAILURE);
-    }      
+    }
 
     if (enum_value < 0 || enum_value > 8)
     {
@@ -152,7 +180,7 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
 	printf("Player chose Even\n");
     }
 
-    else 
+    else
     {
 	if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
 	printf("Player chose %d\n", enum_value);

@@ -22,11 +22,10 @@ def make_move(client_id):
             dice_number = int(input("Select a number from 1-6: "))
         return client_id+"MOV,CON,"+ str(dice_number)
 
-def recv_all():
-    while True:
-        bytes_expected = int(socket.recv(4).decode())
-        message = sock.recv(bytes_expected).decode()
-        yield message
+def recv_message(socket):
+    bytes_expected = int(socket.recv(4).decode())
+    message = sock.recv(bytes_expected).decode()
+    return message
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -38,19 +37,19 @@ sock.connect(server_address)
 count=0
 try:
     sock.sendall('INIT'.encode())
-    response = sock.recv(16).decode()
-    print(response)
+    response = recv_message(sock)
     #Client attempts to join midgame, client will attempt to reconnect every 10s
     if response == "REJECT":
         print("Unable to join game. A match is currently in progress")
         print("Attempting to find a match .....")
         while not response.startswith("WELCOME"):
             sock.sendall('INIT'.encode())
-            response = sock.recv(16).decode()
+            response = recv_message(sock)
             sleep(10)
     while True:
-      client_id = response.decode()[-3:]
-      game_status = sock.recv(16).decode()
+      print(response)
+      client_id = response[-3:]
+      game_status = recv_message(sock)
       #Server Notified not enough players for match
       if game_status == "CANCEL":
           print("Not enough players for match to begin. Exiting.....")
@@ -64,7 +63,7 @@ try:
           while not result.endswith("ELIM") and not result.endswith("VIC"):
               move = make_move(client_id)
               sock.sendall(move.encode())
-              result = sock.recv(16).decode()
+              result = recv_message(sock)
               if result.endswith("PASS"):
                 print("You have guessed correctly")
               elif result.endswith("FAIL"):
