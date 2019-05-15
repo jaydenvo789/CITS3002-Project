@@ -6,9 +6,10 @@ class UnexpectedResponseException(Exception):
     pass
 
 def make_move(client_id):
-    move = int(input('Select a move:\n 1 - Even\n 2 - Odd\n 3 - Doubles\n 4 - Contains "n" \n Move: '))
-    while move != 1 and move != 2 and move != 3 and move != 4:
-        move = input('Invalid input. Please re-enter move: ')
+    move = raw_input('Select a move:\n 1 - Even\n 2 - Odd\n 3 - Doubles\n 4 - Contains "n" \n Move: ')
+    while move != "1" and move != "2" and move != "3" and move != "4":
+        move = raw_input('Invalid input. Please re-enter move: ')
+    move = int(move)
     if move == 1:
         return client_id+"MOV,EVEN"
     elif move == 2:
@@ -61,7 +62,7 @@ try:
           print("Match with "+ game_status[1] + " players starting")
           print("Starting Number of Lives: " + num_lives)
           result = "";
-          while not result.endswith("ELIM") and not result.endswith("VIC"):
+          while (not result.endswith("ELIM")) and (not result.endswith("VIC")):
               move = make_move(client_id)
               sock.sendall(move.encode())
               result = sock.recv(16).decode()

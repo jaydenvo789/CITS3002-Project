@@ -30,7 +30,6 @@ typedef struct
     char *client_id;
 } Client;
 
-typedef enum { ODD, EVEN, C1, C2, C3, C4, C5, C6, DOUB } MOVE;
 int dice1, dice2;
 
 void send_message(char *message, int destination_fd)
@@ -48,12 +47,12 @@ char* receive_message(int sender_fd)
     int read = recv(sender_fd, buf, BUFFER_SIZE, 0);    // Try to read from the incoming client
     if (read < 0){
         fprintf(stderr,"Client read failed\n");
-        exit(EXIT_FAILURE);
+//        exit(EXIT_FAILURE);
+	return "";
     }
     return buf;
 }
 
-// Function called by child to interpret message
 int parse_message(char *message, Client client )
 {
     int enum_value = 10;		// Default, empty value
@@ -78,21 +77,9 @@ int parse_message(char *message, Client client )
 
     else if(strstr(message,"MOV"))
     {
-	if (strstr(message,"EVEN"))
-	{
-	    enum_value = 8;
-	}
-
-	if (strstr(message,"ODD"))
-	{
-	    enum_value = 0;
-	}
-
-	if (strstr(message,"DOUB"))
-	{
-	    enum_value = 7;
-	}
-
+	if (strstr(message,"EVEN")) 	enum_value = 8;
+	if (strstr(message,"ODD")) 	enum_value = 0;
+	if (strstr(message,"DOUB"))	enum_value = 7;
 	if (strstr(message,"CON"))
 	{
 	    if (strstr(message,"CON,1")) enum_value = 1;
@@ -104,11 +91,7 @@ int parse_message(char *message, Client client )
 	}
     }
     
-    else
-    {
-        fprintf(stderr,"Received an unexpected response from player");
-    }
-
+    else fprintf(stderr,"Received an unexpected response from player");
     return enum_value;
 }
 
@@ -116,7 +99,6 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
 {
     // enumvalues - 0 = Odd, 1-6 = Choice of Dice, 7 = Doubles, 8 = Even
     bool failed_round = false;
- 
     int bytes_required = strlen(client.client_id) + strlen(",XXXX") + 1;
     char *result_message = calloc(bytes_required, sizeof(char));
 
@@ -163,7 +145,7 @@ void calculate (int dice1, int dice2, int enum_value, Client client)
 	strcat(result_message,",FAIL");
         send_message(result_message, client.client_fd);
 
-        client.num_lives = 0;
+        client.num_lives--;
         printf("Player has this failed round, lives left: %d\n", client.num_lives);
         if (client.num_lives == 0)
 	{
@@ -253,9 +235,6 @@ int main (int argc, char *argv[]) {
         while (true) {
             char *response = receive_message(client_fd);
             parse_message(response, client);
- //           char welcome_message[BUFFER_SIZE];
- //           sprintf(welcome_message,"WELCOME,%d",client.client_id);
- //           send_message(welcome_message,client.client_fd);
             char start_message[BUFFER_SIZE];
             sprintf(start_message,"START,%i,%i",1,num_lives);
             printf(start_message);
@@ -263,11 +242,24 @@ int main (int argc, char *argv[]) {
 	    fflush(stdout);
             send_message(start_message,client.client_fd);
 
+            struct timeval timeout;      
+	    timeout.tv_sec = 10;
+	    timeout.tv_usec = 0;
+
+            if (setsockopt (server_fd, SOL_SOCKET, SO_RCVTIMEO, 
+         	(char *)&timeout, sizeof(timeout)) < 0) {
+                error("setsockopt failed\n");
+            }
+
 	    while (client.num_lives > 0) {	// Play the game
 		response = "";
-		while (!strstr(response, "MOV")) {	// Wait for move
-		   response = receive_message(client_fd);
+          	response = receive_message(client_fd);
+
+		if (!strstr(response, "MOV")) {
+		    printf("Timeout occured, exitting.\n");
+		    exit(1);
 		}
+
 		dice1 = rand() % 7;
 		dice2 = rand() % 7;
 		int choice = parse_message(response, client);
