@@ -108,6 +108,7 @@ char* receive_message(int sender_fd)
         fprintf(stderr,"Client read failed\n");
         exit(EXIT_FAILURE);
     }
+    buf[read] = '\0';
     return buf;
 }
 
