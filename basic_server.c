@@ -250,7 +250,7 @@ int main (int argc, char *argv[]) {
     int port = atoi(argv[1]);
     int server_fd, client_fd, err, opt_val;
     int num_lives = atoi(argv[2]);
-    char client_id[3];
+    char client_id[4];
     int num_clients = 0;
     Client *connected_clients;
     struct sockaddr_in server, client;
