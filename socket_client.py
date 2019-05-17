@@ -1,6 +1,7 @@
 import socket
 from time import sleep
 
+current_message = ""
 class UnexpectedResponseException(Exception):
     """Raised when client receives an unexpected response"""
     pass
