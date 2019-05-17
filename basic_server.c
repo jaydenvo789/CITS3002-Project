@@ -68,56 +68,60 @@ char* receive_message(int sender_fd)
 int parse_message(char *message, Client client )
 {
     int enum_value = 10;		// Default, empty value
-
-    if(strstr(message,"INIT"))
+    if(validate_message(message))
     {
-        int bytes_required = strlen("WELCOME,") + strlen(client.client_id) + 1;
-        char *welcome_message = calloc(bytes_required, sizeof(char));
-        if(welcome_message != NULL)
+        if(strstr(message,"INIT"))
         {
-            strcpy(welcome_message,"WELCOME,");
-            strcat(welcome_message,client.client_id);
-            send_message(welcome_message, client.client_fd);
-	    printf("Sent welcome message!\n");
+            int bytes_required = strlen("WELCOME,") + strlen(client.client_id) + 1;
+            char *welcome_message = calloc(bytes_required, sizeof(char));
+            if(welcome_message != NULL)
+            {
+                strcpy(welcome_message,"WELCOME,");
+                strcat(welcome_message,client.client_id);
+                send_message(welcome_message, client.client_fd);
+            printf("Sent welcome message!\n");
+            }
+            else
+            {
+                printf("Cannot allocate %i bytes of memory\n",bytes_required);
+                exit(EXIT_FAILURE);
+            }
         }
-        else
+
+        else if(strstr(message,"MOV"))
         {
-            printf("Cannot allocate %i bytes of memory\n",bytes_required);
-            exit(EXIT_FAILURE);
+            if (strstr(message,"EVEN"))
+            {
+                enum_value = 8;
+            }
+
+            if (strstr(message,"ODD"))
+            {
+                enum_value = 0;
+            }
+
+            if (strstr(message,"DOUB"))
+            {
+                enum_value = 7;
+            }
+
+            if (strstr(message,"CON"))
+            {
+                if (strstr(message,"CON,1")) enum_value = 1;
+                if (strstr(message,"CON,2")) enum_value = 2;
+                if (strstr(message,"CON,3")) enum_value = 3;
+                if (strstr(message,"CON,4")) enum_value = 4;
+                if (strstr(message,"CON,5")) enum_value = 5;
+                if (strstr(message,"CON,6")) enum_value = 6;
+            }
         }
-    }
-
-    else if(strstr(message,"MOV"))
-    {
-	if (strstr(message,"EVEN"))
-	{
-	    enum_value = 8;
-	}
-
-	if (strstr(message,"ODD"))
-	{
-	    enum_value = 0;
-	}
-
-	if (strstr(message,"DOUB"))
-	{
-	    enum_value = 7;
-	}
-
-	if (strstr(message,"CON"))
-	{
-	    if (strstr(message,"CON,1")) enum_value = 1;
-	    if (strstr(message,"CON,2")) enum_value = 2;
-	    if (strstr(message,"CON,3")) enum_value = 3;
-	    if (strstr(message,"CON,4")) enum_value = 4;
-	    if (strstr(message,"CON,5")) enum_value = 5;
-	    if (strstr(message,"CON,6")) enum_value = 6;
-	}
     }
 
     else
     {
-        fprintf(stderr,"Received an unexpected response from player");
+        send_message("You have been caught cheating\n"
+                     "Kicking you out\n",
+                       destination_fd);
     }
 
     return enum_value;
