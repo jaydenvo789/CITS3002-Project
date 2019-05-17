@@ -6,7 +6,13 @@ class UnexpectedResponseException(Exception):
     pass
 
 def make_move(client_id):
-    move = int(input('Select a move:\n 1 - Even\n 2 - Odd\n 3 - Doubles\n 4 - Contains "n" \n Move: '))
+    """
+    Function called to allow client to make a move
+    :param client_id: Id of client making the move
+    :returns: String representation of move made by client
+    """
+    move = int(input('Select a move:\n 1 - Even\n 2 - Odd\n \
+                      3 - Doubles\n 4 - Contains "n" \n Move: '))
     while move != 1 and move != 2 and move != 3 and move != 4:
         move = input('Invalid input. Please re-enter move: ')
     if move == 1:
@@ -26,16 +32,18 @@ def recv_message(socket):
     bytes_expected = int(socket.recv(4).decode())
     message = sock.recv(bytes_expected).decode()
     return message
+
+def send_message(socket,message):
+    sock.sendall(str(len(message)).encode)
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 # Connect the socket to the port where the server is listening
 server_address = ('localhost', 8888)
 print ('connecting to %s port %s' % server_address)
-sock.connect(server_address)
 
 count=0
 try:
+    sock.connect(server_address)
     sock.sendall('INIT'.encode())
     response = recv_message(sock)
     #Client attempts to join midgame, client will attempt to reconnect every 10s
@@ -79,6 +87,9 @@ try:
       #Obtained an unexpected response
       else:
           raise UnexpectedResponseException("Unexpected Response " + game_status)
+except socket.error as e:
+    print('%s: Unable to connect to %s port %s' \
+           % (str(e),server_address[0],server_address[1]))
 except UnexpectedResponseException as e:
     print(str(e))
 finally:

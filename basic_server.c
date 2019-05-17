@@ -33,6 +33,12 @@ typedef struct
 typedef enum { ODD, EVEN, C1, C2, C3, C4, C5, C6, DOUB } MOVE;
 int dice1, dice2;
 
+/*
+*Left Pads a string with 0s infront based on required width
+*@param message: String that is to be left padded with 0s
+*@param width: Length of the final String
+*@return final string with padded 0s on the left
+*/
 char *pad_left(char *message,int width)
 {
     int message_length = strlen(message);
@@ -51,6 +57,14 @@ char *pad_left(char *message,int width)
     strcat(padded_message,message);
     return padded_message;
 }
+
+/*
+*Sends client a message. Server first sends a 4 byte string to indicate
+*length of message to be received by client.
+*@param message: message to obe sent to the client
+*@param width: Length of the final String
+*@return void
+*/
 void send_message(char *message, int destination_fd)
 {
     char buff[BUFFER_SIZE];
@@ -73,6 +87,11 @@ void send_message(char *message, int destination_fd)
 char* receive_message(int sender_fd)
 {
     char *buf = calloc(BUFFER_SIZE, sizeof(char)); // Clear our buffer so we don't accidentally send/print garbage
+    if (buf == NULL)
+    {
+        printf("Cannot allocate %i bytes of memory\n",BUFFER_SIZE);
+        exit(EXIT_FAILURE);
+    }
     int read = recv(sender_fd, buf, BUFFER_SIZE, 0);    // Try to read from the incoming client
     if (read < 0){
         fprintf(stderr,"Client read failed\n");
