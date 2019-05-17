@@ -11,7 +11,7 @@
  * Food for thought:
  *   - Can we wrap the action of sending ALL of out data and receiving ALL of the data?
  */
-
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,49 +31,50 @@ typedef struct
 } Client;
 
 int dice1, dice2;
+
 bool validate_message(char * message, char *client_id)
 {
     if (strlen(message) > 14) {
         printf("The packet is too long, causing it to be invalid\n");
         return false;
     }
-    printf("%s\n",message);
-    if(strstr(message,"INIT") && strcmp(message, "INIT")) return true;
-    else if(strstr(message,"MOV"))
+    if(strstr(message,"INIT") != NULL && !strcmp(message, "INIT")) return true;
+    else if(strstr(message,"MOV") != NULL)
     {
-        char packet[10];
-        if (strstr(message,"EVEN")) {
-            sprintf(packet,"%dMOV,EVEN", client_id);
-            if(strcmp(message, packet)) {
+        char packet[14];
+        if (strstr(message,"EVEN") != NULL) {
+            sprintf(packet,"%s,MOV,EVEN", client_id);
+            if(strcmp(message, packet) != 0) {
                 printf("Invalid EVEN move packet\n");
                 return false;
             }
         }
-
-        if (strstr(message,"ODD")) {
-            sprintf(packet,"%dMOV,ODD", client_id);
-            if(strcmp(message, packet)) {
+        if (strstr(message,"ODD") != NULL) {
+            sprintf(packet,"%s,MOV,ODD", client_id);
+            if(strcmp(message, packet) != 0) {
                 printf("Invalid ODD move packet\n");
                 return false;
             }
         }
 
-        if (strstr(message,"DOUB")) {
-            sprintf(packet,"%dMOV,DOUB", client_id);
-            if(strcmp(message, packet)) {
+        if (strstr(message,"DOUB") != NULL) {
+            sprintf(packet,"%s,MOV,DOUB", client_id);
+            if(strcmp(message, packet) != 0) {
                 printf("Invalid DOUB move packet\n");
                 return false;
             }
         }
-
-        if (strstr(message,"CON")) {
-            sprintf(packet,"%dMOV,CON,", client_id);
-            if(strstr(message, packet)) {
+        if (strstr(message,"CON") != NULL) {
+            sprintf(packet,"%s,MOV,CON,", client_id);
+            printf("%s\n",client_id);
+            printf("%s\n",message);
+            printf("%s\n",packet);
+            if(strstr(message, packet) == NULL) {
                 printf("Invalid CON move packet\n");
                 return false;
             }
         }
-        printf("It's an old message, but it checks out");
+        printf("It's an old message, but it checks out\n");
         return true;
     }
     printf("Not a proper INIT or MOV packet, causing to be invalid\n");
@@ -93,6 +94,7 @@ void send_message(char *message, int destination_fd)
         fprintf(stderr,"Client write failed\n");
         exit(EXIT_FAILURE);
     }
+    sleep(1);
 }
 
 char* receive_message(int sender_fd)
@@ -118,7 +120,7 @@ int parse_message(char *message, Client client )
     int enum_value = 10;		// Default, empty value
     if(validate_message(message,client.client_id))
     {
-        if(strstr(message,"INIT"))
+        if(strstr(message,"INIT") != NULL)
         {
             int bytes_required = strlen("WELCOME,") + strlen(client.client_id) + 1;
             char *welcome_message = calloc(bytes_required, sizeof(char));
@@ -127,7 +129,7 @@ int parse_message(char *message, Client client )
                 strcpy(welcome_message,"WELCOME,");
                 strcat(welcome_message,client.client_id);
                 send_message(welcome_message, client.client_fd);
-            printf("Sent welcome message!\n");
+                printf("Sent welcome message!\n");
             }
             else
             {
@@ -136,31 +138,31 @@ int parse_message(char *message, Client client )
             }
         }
 
-        else if(strstr(message,"MOV"))
+        else if(strstr(message,"MOV") != NULL)
         {
-            if (strstr(message,"EVEN"))
+            if (strstr(message,"EVEN") != NULL)
             {
                 enum_value = 8;
             }
 
-            if (strstr(message,"ODD"))
+            if (strstr(message,"ODD") != NULL)
             {
                 enum_value = 0;
             }
 
-            if (strstr(message,"DOUB"))
+            if (strstr(message,"DOUB") != NULL)
             {
                 enum_value = 7;
             }
 
-            if (strstr(message,"CON"))
+            if (strstr(message,"CON") != NULL)
             {
-                if (strstr(message,"CON,1")) enum_value = 1;
-                if (strstr(message,"CON,2")) enum_value = 2;
-                if (strstr(message,"CON,3")) enum_value = 3;
-                if (strstr(message,"CON,4")) enum_value = 4;
-                if (strstr(message,"CON,5")) enum_value = 5;
-                if (strstr(message,"CON,6")) enum_value = 6;
+                if (strstr(message,"CON,1") != NULL) enum_value = 1;
+                if (strstr(message,"CON,2") != NULL) enum_value = 2;
+                if (strstr(message,"CON,3") != NULL) enum_value = 3;
+                if (strstr(message,"CON,4") != NULL) enum_value = 4;
+                if (strstr(message,"CON,5") != NULL) enum_value = 5;
+                if (strstr(message,"CON,6")!= NULL) enum_value = 6;
             }
         }
     }
@@ -170,6 +172,7 @@ int parse_message(char *message, Client client )
         send_message("You have been caught cheating\n"
                      "Kicking you out\n",
                        client.client_fd);
+        exit(EXIT_FAILURE);
     }
     return enum_value;
 }
@@ -246,7 +249,7 @@ int main (int argc, char *argv[]) {
         fprintf(stderr,"Usage: %s [port], [number of lives]\n",argv[0]);
         exit(EXIT_FAILURE);
     }
-
+    srand ( time(NULL) ); //set seed
     int port = atoi(argv[1]);
     int server_fd, client_fd, err, opt_val;
     int num_lives = atoi(argv[2]);
@@ -320,18 +323,17 @@ int main (int argc, char *argv[]) {
             // send_message(welcome_message,client.client_fd);
             char start_message[BUFFER_SIZE];
             sprintf(start_message,"START,%i,%i",1,num_lives);
-            printf("%s",start_message);
-            printf("\n");
+            printf("%s\n",start_message);
             fflush(stdout);
             send_message(start_message,client.client_fd);
 
             while (client.num_lives > 0) {	// Play the game
-                response = "";
-                while (!strstr(response, "MOV")) {	// Wait for move
+                response = receive_message(client_fd);
+                while (strstr(response, "MOV") == NULL) {	// Wait for move
                     response = receive_message(client_fd);
                 }
-                dice1 = rand() % 7;
-                dice2 = rand() % 7;
+                dice1 = ((rand() % 6) + 1) ;
+                dice2 = ((rand() % 6) + 1) ;
                 int choice = parse_message(response, client);
                 calculate (dice1, dice2, choice, &client);
                 printf ("Dice were: %d and %d\n", dice1, dice2);

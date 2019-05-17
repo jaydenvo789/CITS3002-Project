@@ -17,21 +17,20 @@ def make_move(client_id):
     while move != 1 and move != 2 and move != 3 and move != 4:
         move = input('Invalid input. Please re-enter move: ')
     if move == 1:
-        return client_id+"MOV,EVEN"
+        return client_id+",MOV,EVEN"
     elif move == 2:
-        return client_id+"MOV,ODD"
+        return client_id+",MOV,ODD"
     elif move == 3:
-        return client_id+"MOV,DOUB"
+        return client_id+",MOV,DOUB"
     else:
         dice_number = int(input("Select a number from 1-6: "))
         while dice_number < 1 or dice_number > 6:
             print("Value is not between 1-6")
             dice_number = int(input("Select a number from 1-6: "))
-        return client_id+"MOV,CON,"+ str(dice_number)
+        return client_id+",MOV,CON,"+ str(dice_number)
 
 def recv_message(socket):
     message = socket.recv(14).decode()
-    print(message)
     return message
 
 def send_message(socket,message):
@@ -64,26 +63,28 @@ try:
           break
       elif game_status.startswith("START"):
           game_status = game_status.split(",")
-          num_lives = game_status[2]
+          num_lives = int(game_status[2])
           print("Match with "+ game_status[1] + " players starting")
-          print("Starting Number of Lives: " + num_lives)
-          result = "";
-          while not result.endswith("ELIM") and not result.endswith("VIC"):
+          print("Starting Number of Lives: " + str(num_lives))
+          while num_lives > 0:
               move = make_move(client_id)
               sock.sendall(move.encode())
               result = recv_message(sock)
               if result.endswith("PASS"):
                 print("You have guessed correctly")
               elif result.endswith("FAIL"):
-                  num_lives = str(int(num_lives) - 1)
+                  num_lives = int(num_lives) - 1
                   print("You have guessed wrongly")
-                  print("Remaining Lives: " + num_lives)
+                  print("Remaining Lives: " + str(num_lives))
               else:
                   raise UnexpectedResponseException("Unexpected Response "+ result)
-          if result.endswith("ELIM"):
+          result = recv_message(sock)
+          if "ELIM" in result:
              print("You have been eliminated")
+             break
           else:
              print("You are the winner")
+             break
       #Obtained an unexpected response
       else:
           raise UnexpectedResponseException("Unexpected Response " + game_status)
