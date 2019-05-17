@@ -56,7 +56,6 @@ try:
             response = recv_message(sock)
             sleep(10)
     while True:
-      print(response)
       client_id = response[-3:]
       game_status = recv_message(sock)
       #Server Notified not enough players for match

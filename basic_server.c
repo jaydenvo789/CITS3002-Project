@@ -31,12 +31,13 @@ typedef struct
 } Client;
 
 int dice1, dice2;
-bool validate_message(char * message, int client_id)
+bool validate_message(char * message, char *client_id)
 {
     if (strlen(message) > 14) {
         printf("The packet is too long, causing it to be invalid\n");
         return false;
     }
+    printf("%s\n",message);
     if(strstr(message,"INIT") && strcmp(message, "INIT")) return true;
     else if(strstr(message,"MOV"))
     {
@@ -91,6 +92,7 @@ void send_message(char *message, int destination_fd)
     if (err < 0){
         fprintf(stderr,"Client write failed\n");
         exit(EXIT_FAILURE);
+    }
 }
 
 char* receive_message(int sender_fd)
@@ -113,7 +115,7 @@ char* receive_message(int sender_fd)
 int parse_message(char *message, Client client )
 {
     int enum_value = 10;		// Default, empty value
-    if(validate_message(message))
+    if(validate_message(message,client.client_id))
     {
         if(strstr(message,"INIT"))
         {
@@ -166,7 +168,7 @@ int parse_message(char *message, Client client )
     {
         send_message("You have been caught cheating\n"
                      "Kicking you out\n",
-                       destination_fd);
+                       client.client_fd);
     }
     return enum_value;
 }
@@ -312,9 +314,9 @@ int main (int argc, char *argv[]) {
         while (true) {
             char *response = receive_message(client_fd);
             parse_message(response, client);
- //           char welcome_message[BUFFER_SIZE];
- //           sprintf(welcome_message,"WELCOME,%d",client.client_id);
- //           send_message(welcome_message,client.client_fd);
+            // char welcome_message[BUFFER_SIZE];
+            // sprintf(welcome_message,"WELCOME,%d",client.client_id);
+            // send_message(welcome_message,client.client_fd);
             char start_message[BUFFER_SIZE];
             sprintf(start_message,"START,%i,%i",1,num_lives);
             printf("%s",start_message);
