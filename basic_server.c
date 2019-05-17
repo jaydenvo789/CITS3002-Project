@@ -34,54 +34,18 @@ typedef enum { ODD, EVEN, C1, C2, C3, C4, C5, C6, DOUB } MOVE;
 int dice1, dice2;
 
 /*
-*Left Pads a string with 0s infront based on required width
-*@param message: String that is to be left padded with 0s
-*@param width: Length of the final String
-*@return final string with padded 0s on the left
-*/
-char *pad_left(char *message,int width)
-{
-    int message_length = strlen(message);
-    char *padded_message = calloc(1,width+1);
-    //No requried padding
-    if(width == message_length)
-    {
-        return message;
-    }
-    if(padded_message == NULL)
-    {
-        printf("Cannot allocate %i bytes of memory\n",width);
-        exit(EXIT_FAILURE);
-    }
-    memset(padded_message,'0',width-message_length);
-    strcat(padded_message,message);
-    return padded_message;
-}
-
-/*
-*Sends client a message. Server first sends a 4 byte string to indicate
-*length of message to be received by client.
+*Sends client a message.
 *@param message: message to obe sent to the client
 *@param width: Length of the final String
 *@return void
 */
 void send_message(char *message, int destination_fd)
 {
-    char buff[BUFFER_SIZE];
-    sprintf(buff,"%d",strlen(message));
-
-    char *message_length = pad_left(buff,4);
     //Inform Client how much bytes it will need to receive
-    int err = send(destination_fd,message_length, strlen(message_length), 0);
+    int err = send(destination_fd,message,strlen(message),0);
     if (err < 0){
         fprintf(stderr,"Client write failed\n");
         exit(EXIT_FAILURE);
-    }
-    err = send(destination_fd,message,strlen(message),0);
-    if (err < 0){
-        fprintf(stderr,"Client write failed\n");
-        exit(EXIT_FAILURE);
-    }
 }
 
 char* receive_message(int sender_fd)
