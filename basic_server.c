@@ -30,48 +30,53 @@ typedef struct
     char *client_id;
 } Client;
 
-typedef enum { ODD, EVEN, C1, C2, C3, C4, C5, C6, DOUB } MOVE;
 int dice1, dice2;
-
-bool validate_message(char * message)
+bool validate_message(char * message, int client_id)
 {
-    if(strstr(message,"INIT"))
-    {
-
+    if (strlen(message) > 14) {
+        printf("The packet is too long, causing it to be invalid\n");
+        return false;
     }
+    if(strstr(message,"INIT") && strcmp(message, "INIT")) return true;
     else if(strstr(message,"MOV"))
     {
-        if (strstr(message,"EVEN"))
-        {
-
+        char packet[10];
+        if (strstr(message,"EVEN")) {
+            sprintf(packet,"%dMOV,EVEN", client_id);
+            if(strcmp(message, packet)) {
+                printf("Invalid EVEN move packet\n");
+                return false;
+            }
         }
-
-        else if (strstr(message,"ODD"))
-        {
-
+        
+        if (strstr(message,"ODD")) {
+            sprintf(packet,"%dMOV,ODD", client_id);
+            if(strcmp(message, packet)) {
+                printf("Invalid ODD move packet\n");
+                return false;
+            }
         }
-
-        else if (strstr(message,"DOUB"))
-        {
-
+        
+        if (strstr(message,"DOUB")) {
+            sprintf(packet,"%dMOV,DOUB", client_id);
+            if(strcmp(message, packet)) {
+                printf("Invalid DOUB move packet\n");
+                return false;
+            }
         }
-
-        else if (strstr(message,"CON"))
-        {
-
+        
+        if (strstr(message,"CON")) {
+            sprintf(packet,"%dMOV,CON,", client_id);
+            if(strstr(message, packet)) {
+                printf("Invalid CON move packet\n");
+                return false;
+            }
         }
-        else if (strstr(message,"ODD"))
-        {
-
-        }
-        else if (strstr(message,"DOUB"))
-        {
-
-        }
-        else
-        {
-            return false
-        }
+        printf("It's an old message, but it checks out");
+        return true;
+    }
+    printf("Not a proper INIT or MOV packet, causing to be invalid\n");
+    return false;
 }
 /*
 *Sends client a message.
@@ -131,104 +136,87 @@ int parse_message(char *message, Client client )
 
     else if(strstr(message,"MOV"))
     {
-	if (strstr(message,"EVEN"))
-	{
-	    enum_value = 8;
-	}
-
-	if (strstr(message,"ODD"))
-	{
-	    enum_value = 0;
-	}
-
-	if (strstr(message,"DOUB"))
-	{
-	    enum_value = 7;
-	}
-
-	if (strstr(message,"CON"))
-	{
-	    if (strstr(message,"CON,1")) enum_value = 1;
-	    if (strstr(message,"CON,2")) enum_value = 2;
-	    if (strstr(message,"CON,3")) enum_value = 3;
-	    if (strstr(message,"CON,4")) enum_value = 4;
-	    if (strstr(message,"CON,5")) enum_value = 5;
-	    if (strstr(message,"CON,6")) enum_value = 6;
-	}
+        if (strstr(message,"EVEN"))  enum_value = 8;
+        if (strstr(message,"ODD"))   enum_value = 0;
+        if (strstr(message,"DOUB"))  enum_value = 7;
+        if (strstr(message,"CON"))
+        {
+            if (strstr(message,"CON,1")) enum_value = 1;
+            if (strstr(message,"CON,2")) enum_value = 2;
+            if (strstr(message,"CON,3")) enum_value = 3;
+            if (strstr(message,"CON,4")) enum_value = 4;
+            if (strstr(message,"CON,5")) enum_value = 5;
+            if (strstr(message,"CON,6")) enum_value = 6;
+        }
     }
-
-    else
-    {
-        fprintf(stderr,"Received an unexpected response from player");
-    }
-
+    else fprintf(stderr,"Received an unexpected response from player");
     return enum_value;
 }
 
-void calculate (int dice1, int dice2, int enum_value, Client client)
+void calculate (int dice1, int dice2, int enum_value, Client* client)
 {
     // enumvalues - 0 = Odd, 1-6 = Choice of Dice, 7 = Doubles, 8 = Even
     bool failed_round = false;
-
-    int bytes_required = strlen(client.client_id) + strlen(",XXXX") + 1;
+    
+    int bytes_required = strlen(client->client_id) + strlen(",XXXX") + 1;
     char *result_message = calloc(bytes_required, sizeof(char));
-
-    if(result_message != NULL) strcpy(result_message,client.client_id);
-
+    
+    if(result_message != NULL) strcpy(result_message,client->client_id);
+    
     else
     {
         printf("Cannot allocate %i bytes of memory\n",bytes_required);
         exit(EXIT_FAILURE);
     }
-
+    
     if (enum_value < 0 || enum_value > 8)
     {
-	fprintf(stderr,"Invalid enum value");
-	return;
+        fprintf(stderr,"Invalid enum value");
+        return;
     }
-
-    else if (enum_value == 0)	// Odd
-    {	// Fails if even or dice-sum is not greater than 5
+    
+    else if (enum_value == 0)    // Odd
+    {    // Fails if even or dice-sum is not greater than 5
         if ((dice1 + dice2)%2 == 0 || dice1 + dice2 <= 5) failed_round = true;
-	printf("Player chose Odd\n");
+        printf("Player chose Odd\n");
     }
-
-    else if (enum_value == 7)	// Doubles
+    
+    else if (enum_value == 7)    // Doubles
     {
         if (dice1 != dice2) failed_round = true;
-	printf("Player chose Doubles\n");
+        printf("Player chose Doubles\n");
     }
-
-    else if (enum_value == 8)	// Even
-    {	// Fails if odd or doubles
+    
+    else if (enum_value == 8)    // Even
+    {    // Fails if odd or doubles
         if ((dice1 + dice2)%2 == 1 || dice1 == dice2) failed_round = true;
-	printf("Player chose Even\n");
+        printf("Player chose Even\n");
     }
-
+    
     else
     {
-	if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
-	printf("Player chose %d\n", enum_value);
+        if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
+        printf("Player chose %d\n", enum_value);
     }
-
+    
     if (failed_round)
     {
-	strcat(result_message,",FAIL");
-        send_message(result_message, client.client_fd);
-
-        client.num_lives = 0;
-        printf("Player has this failed round, lives left: %d\n", client.num_lives);
-        if (client.num_lives == 0)
-	{
-	    strcpy(result_message,client.client_id);
+        strcat(result_message,",FAIL");
+        send_message(result_message, client->client_fd);
+        
+        client->num_lives--;
+        printf("Player has this failed round, lives left: %d\n", client->num_lives);
+        if (client->num_lives == 0)
+        {
+            strcpy(result_message,client->client_id);
             strcat(result_message,",ELIM");
-            send_message(result_message, client.client_fd);
+            send_message(result_message, client->client_fd);
         }
     }
     else {
-	strcat(result_message,",PASS");
-        send_message(result_message, client.client_fd);
-	printf("Player has survived... this round\n");
+        strcat(result_message,",PASS");
+        send_message(result_message, client->client_fd);
+        printf("Player has survived... this round\n");
     }
 }
 
@@ -300,7 +288,7 @@ int main (int argc, char *argv[]) {
         }
         if(connected_clients == NULL)
         {
-            printf("Cannot allocate %i bytes of memory\n",num_clients * sizeof(Client));
+            printf("Cannot allocate %lu bytes of memory\n",num_clients * sizeof(Client));
             exit(EXIT_FAILURE);
         }
         while (true) {
@@ -311,23 +299,23 @@ int main (int argc, char *argv[]) {
  //           send_message(welcome_message,client.client_fd);
             char start_message[BUFFER_SIZE];
             sprintf(start_message,"START,%i,%i",1,num_lives);
-            printf(start_message);
-	    printf("\n");
-	    fflush(stdout);
+            printf("%s",start_message);
+            printf("\n");
+            fflush(stdout);
             send_message(start_message,client.client_fd);
 
-	    while (client.num_lives > 0) {	// Play the game
-		response = "";
-		while (!strstr(response, "MOV")) {	// Wait for move
-		   response = receive_message(client_fd);
-		}
-		dice1 = rand() % 7;
-		dice2 = rand() % 7;
-		int choice = parse_message(response, client);
-		calculate (dice1, dice2, choice, client);
-		printf ("Dice were: %d and %d\n", dice1, dice2);
-	    }
-	    exit(0);
+            while (client.num_lives > 0) {	// Play the game
+                response = "";
+                while (!strstr(response, "MOV")) {	// Wait for move
+                    response = receive_message(client_fd);
+                }
+                dice1 = rand() % 7;
+                dice2 = rand() % 7;
+                int choice = parse_message(response, client);
+                calculate (dice1, dice2, choice, &client);
+                printf ("Dice were: %d and %d\n", dice1, dice2);
+            }
+            exit(0);
         }
     }
 }

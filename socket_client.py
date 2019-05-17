@@ -29,8 +29,8 @@ def make_move(client_id):
         return client_id+"MOV,CON,"+ str(dice_number)
 
 def recv_message(socket):
-    bytes_expected = int(socket.recv(4).decode())
-    message = sock.recv(bytes_expected).decode()
+    message = socket.recv(14).decode()
+    print(message)
     return message
 
 def send_message(socket,message):
