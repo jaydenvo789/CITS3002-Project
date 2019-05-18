@@ -28,6 +28,9 @@ typedef struct
     int client_fd;
     int num_lives;
     char *client_id;
+    bool hasPlayedRound;
+    int toParentPipe[2];		// Pipe child uses to write to parent
+    int fromParentPipe[2];		// Pipe child uses to read from parent
 } Client;
 
 int dice1, dice2;
@@ -228,6 +231,16 @@ int parse_message(char *message, Client client )
     return enum_value;
 }
 
+void send_victory (Client client)
+{
+    int bytes_required = strlen("VICT") + 1;
+    char *victory_message = calloc(bytes_required, sizeof(char));
+    if(victory_message != NULL)
+    {
+        strcpy(victory_message,"VICT");
+        send_message(victory_message, client.client_fd);
+}
+
 void calculate (int dice1, int dice2, int enum_value, Client* client)
 {
     // enumvalues - 0 = Odd, 1-6 = Choice of Dice, 7 = Doubles, 8 = Even
@@ -281,12 +294,14 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
 
         client->num_lives--;
         printf("Player has this failed round, lives left: %d\n", client->num_lives);
+/**
         if (client->num_lives == 0)
         {
             strcpy(result_message,client->client_id);
             strcat(result_message,",ELIM");
             send_message(result_message, client->client_fd);
         }
+**/
     }
     else {
         strcat(result_message,",PASS");
@@ -301,6 +316,7 @@ int main (int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     srand ( time(NULL) ); //set seed
+    int pid;
     int port = atoi(argv[1]);
     int server_fd, client_fd, err, opt_val;
     int num_lives = atoi(argv[2]);
@@ -337,7 +353,8 @@ int main (int argc, char *argv[]) {
     }
 
     printf("Server is listening on %d\n", port);
-
+    
+    id_iterator = 1;
     while (true) {
         socklen_t client_len = sizeof(client);
         // Will block until a connection is made
@@ -346,8 +363,8 @@ int main (int argc, char *argv[]) {
             fprintf(stderr,"Could not establish connection with new client\n");
             continue;
         }
-        sprintf(client_id, "%d", rand() % 900 + 100); //Generate a 3 digit id number
-// Might create same ID
+        sprintf(client_id, "%d", id_iterator); 			// Set client id
+	id_iterator = (id_iterator + 1) % 10;
         Client client = {client_fd,num_lives,client_id};
         num_clients++;
         //Store a connected reference to the client
@@ -366,12 +383,55 @@ int main (int argc, char *argv[]) {
             printf("Cannot allocate %lu bytes of memory\n",num_clients * sizeof(Client));
             exit(EXIT_FAILURE);
         }
+	
+	for(int i = 0; i < num_clients; i++) 		// Create a child for each client 
+	{ 
+	    if(fork() == 0)				// If child
+	    { 
+		printf("I am a child\n");
+		Client player = connected_clients[num_clients -1];	// Set the current player
+		char *response = receive_message(player.client_fd);
+		parse_message(response, player);
+		char start_message[BUFFER_SIZE];
+		sprintf(start_message,"START,%i,%i",1,num_lives);
+		send_message(start_message,player.client_fd);
+
+		while (player.num_lives > 0) {			// Play the game
+		    response = receive_message(player.client_fd);
+		    while (strstr(response, "MOV") == NULL) {	// Wait for move
+		        response = receive_message(player.client_fd);
+		    }
+		    player.toParentPipe[1] = parse_message(response, player);
+		}
+	    } 
+	} 
+
+	    // loop? to wait
+	num_prev_clients;		// Number of clients in previous round
+	while (true) {			// Infinite loop while game is runnning
+	    num_prev_clients = num_clients;
+	    dice1 = ((rand() % 6) + 1) ;
+	    dice2 = ((rand() % 6) + 1) ;
+	// if everyone has made  a move
+	    for (int i = 0; i < num_clients; i++) {
+	        calculate (dice1, dice2, connected_clients[i].toParentPipe[0], &connected_clients[i]);
+		if (connected_clients[i].num_lives == 0) 
+	    }
+	    kick_player();
+	    if (num_clients == 1) {
+		send_victory(connected_clients[0]);
+		break;			// Breaks to end the game
+	    }
+	    if (num_clients == 0) {	// There is a tie
+		for (int i = 0; i < num_prev_clients; i++) {
+		    send_victory(connected_clients[i];
+		}
+	    }
+	}
+/**
         while (true) {
             char *response = receive_message(client_fd);
             parse_message(response, client);
-            // char welcome_message[BUFFER_SIZE];
-            // sprintf(welcome_message,"WELCOME,%d",client.client_id);
-            // send_message(welcome_message,client.client_fd);
             char start_message[BUFFER_SIZE];
             sprintf(start_message,"START,%i,%i",1,num_lives);
             printf("%s\n",start_message);
@@ -383,13 +443,13 @@ int main (int argc, char *argv[]) {
                 while (strstr(response, "MOV") == NULL) {	// Wait for move
                     response = receive_message(client_fd);
                 }
-                dice1 = ((rand() % 6) + 1) ;
-                dice2 = ((rand() % 6) + 1) ;
+
                 int choice = parse_message(response, client);
                 calculate (dice1, dice2, choice, &client);
                 printf ("Dice were: %d and %d\n", dice1, dice2);
             }
             exit(0);
         }
+**/
     }
 }
