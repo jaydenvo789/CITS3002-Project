@@ -80,6 +80,57 @@ bool validate_message(char * message, char *client_id)
     printf("Not a proper INIT or MOV packet, causing to be invalid\n");
     return false;
 }
+
+/*
+*Kicks player out by removing them from pointer containing connected clients
+*Will not kick players out if draw
+*@param num_clients: Number of clients still connected
+*@param connected_clients: Pointer containing list of connected clients
+*@return void
+*/
+void kick_player(int *num_clients,Client *connected_clients)
+{
+    int num_people_kicked = 0;
+    for(int i = 0; i < num_clients; i++)
+    {
+        if (connected_clients[i]->num_lives == 0)
+        {
+            num_people_kicked++;
+        }
+    }
+    if(num_people_kicked != num_clients) //Not a draw
+    {
+        Client *surviving_players;
+        int index = 0;
+        if(surviving_players == NULL)
+        {
+            printf("Cannot allocate %i bytes of memory\n",bytes_required);
+            exit(EXIT_FAILURE);
+        }
+        int bytes_required = (num_clients - num_people_kicked) * sizeof(Client);
+        for(int j = 0; j < num_clients; j++)
+        {
+            if (connected_clients[i]->num_lives == 0) //Client dead so kick them
+            {
+                strcpy(result_message,client->client_id);
+                strcat(result_message,",ELIM");
+                send_message(result_message, client->client_fd);
+            }
+            else
+            {
+                surviving_players[index] = connected_clients[i]
+                index++
+            }
+        }
+        *(num_clients) = *num_clients - num_people_kicked;
+        *(connected_clients) = surviving_players;
+    }
+    else
+    {
+        *(num_clients) = 0;
+    }
+}
+
 /*
 *Sends client a message.
 *length of message to be received by client.
