@@ -28,9 +28,10 @@ typedef struct
     int client_fd;
     int num_lives;
     char *client_id;
+    bool has_played; //Bool expression to indicate that the
+    char move[BUFFER_SIZE] //to store move made by client
     int toParentMovePipe[2];		// Pipe child uses to write the move to parent
     int fromParentPipe[2];		// Pipe child uses to read from parent
-    int toParentRoundPipe[2];		// Pipe child uses to write if round has been played to parent
 } Client;
 
 int dice1, dice2;
@@ -296,14 +297,6 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
 
         client->num_lives--;
         printf("Player has this failed round, lives left: %d\n", client->num_lives);
-/**
-        if (client->num_lives == 0)
-        {
-            strcpy(result_message,client->client_id);
-            strcat(result_message,",ELIM");
-            send_message(result_message, client->client_fd);
-        }
-**/
     }
     else {
         strcat(result_message,",PASS");
@@ -318,18 +311,11 @@ int main (int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     srand ( time(NULL) ); //set seed
-    int pid;
-    int port = atoi(argv[1]);
     int server_fd, client_fd, err, opt_val;
+    int port = atoi(argv[1]);
     int num_lives = atoi(argv[2]);
-    char client_id[4];
-    int num_clients = 0;
-    Client *connected_clients;
     struct sockaddr_in server, client;
-    char *buf;
-
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
-
     if (server_fd < 0){
         fprintf(stderr,"Could not create socket\n");
         exit(EXIT_FAILURE);
@@ -338,25 +324,25 @@ int main (int argc, char *argv[]) {
     server.sin_family = AF_INET;
     server.sin_port = htons(port);
     server.sin_addr.s_addr = htonl(INADDR_ANY);
-
     opt_val = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof opt_val);
 
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof opt_val);
     err = bind(server_fd, (struct sockaddr *) &server, sizeof(server));
     if (err < 0){
         fprintf(stderr,"Could not bind socket\n");
         exit(EXIT_FAILURE);
     }
-
     err = listen(server_fd, 128);
     if (err < 0){
         fprintf(stderr,"Could not listen on socket\n");
         exit(EXIT_FAILURE);
     }
-
     printf("Server is listening on %d\n", port);
-    
+
     int id_iterator = 1;
+    int num_clients = 0;
+    char pipe_buf[BUFFER_SIZE];
+    Client *connected_clients;
     while (true) {
 // *************** Add timer/max players
         socklen_t client_len = sizeof(client);
@@ -367,8 +353,10 @@ int main (int argc, char *argv[]) {
             continue;
         }
         sprintf(client_id, "%d", id_iterator); 			// Set client id
-	id_iterator = (id_iterator + 1) % 10;
-        Client client = {client_fd,num_lives,client_id};
+        id_iterator = (id_iterator + 1) % 10;
+        Client client = {client_fd,num_lives,client_id,false};
+        pipe(client.toParentMovePipe);
+        pipe(client.fromParentPipe);
         num_clients++;
         //Store a connected reference to the client
         if(connected_clients == NULL)
@@ -386,64 +374,74 @@ int main (int argc, char *argv[]) {
             printf("Cannot allocate %lu bytes of memory\n",num_clients * sizeof(Client));
             exit(EXIT_FAILURE);
         }
-	
-	for(i = 0; i < num_clients; i++) 		// Create a child for each client 
-	{ 
-	    if(fork() == 0)				// If child
-	    { 
-		printf("I am a child\n");
-		Client player = connected_clients[num_clients -1];	// Set the current player
-		pipe(player.toParentMovePipe);
-		pipe(player.fromParentPipe);
-		pipe(player.toParentRoundPipe);
 
-		char *response = receive_message(player.client_fd);
-		parse_message(response, player);
-		char start_message[BUFFER_SIZE];
-		sprintf(start_message,"START,%i,%i",1,num_lives);
-		send_message(start_message,player.client_fd);
+    	for(i = 0; i < num_clients; i++) 		// Create a child for each client
+    	{
+    	    if(fork() == 0)				// If child
+    	    {
+        		printf("I am a child\n");
+        		Client player = connected_clients[i];	// Set the current player
+        		char *response = receive_message(player.client_fd);
+        		parse_message(response, player);
 
-		while (player.num_lives > 0) {			// Plays the game, looping while there is lives left
-		    player.toParentRoundPipe[1] = false;
-		    response = receive_message(player.client_fd);
-		    while (strstr(response, "MOV") == NULL) {	// Wait for move
-		        response = receive_message(player.client_fd);
-		    }
-		    player.toParentMovePipe[1] = parse_message(response, player);
-		    player.toParentRoundPipe[1] = true;
-// ***** Must get num lives from parent.
-		}
-	    } 
-	} 
+        		char start_message[BUFFER_SIZE];
+        		sprintf(start_message,"START,%i,%i",1,num_lives);
+        		send_message(start_message,player.client_fd);
 
-	int num_prev_clients;		// Number of clients in previous round
-	bool round_Ready = false;
-// Parent Loop
-	while (true) {			// Infinite loop while game is runnning
-	    num_prev_clients = num_clients;
-	    dice1 = ((rand() % 6) + 1) ;
-	    dice2 = ((rand() % 6) + 1) ;
-	    while (round_Ready == false) {				// Goes through each client, if at least one is not ready, set it to false
-//********* add timer for losing life for not doing move
-	        round_Ready = true;
-	        for(i = 0; i < num_clients; i++) {
-  	            if (connected_clients[i].toParentMovePipe[0] != "Played") round_Ready = true; 
-	        }
-	    }
-	    for(i = 0; i < num_clients; i++) {			// Calculates the outcome for each player
-	        calculate (dice1, dice2, connected_clients[i].toParentMovePipe[0], &connected_clients[i]);
-	    }
-	    kick_player();
-	    if (num_clients == 1) {
-		send_victory(connected_clients[0]);
-		break;			// Breaks to end the game
-	    }
-	    if (num_clients == 0) {	// There is a tie
-		for(i = 0; i < num_prev_clients; i++) {
-		    send_victory(connected_clients[i]);
-		    break;
-		}
-	    }
-	}
+        		while (player.num_lives > 0) {			// Plays the game, looping while there is lives left
+        		    response = receive_message(player.client_fd);
+        		    while (strstr(response, "MOV") == NULL) {	// Wait for move
+        		        response = receive_message(player.client_fd);
+        		    }
+                    char *parsed_response = parse_message(response, player);
+        		    write(player.toParentMovePipe[1],parsed_response,strlen(parsed_response)+1);
+        // ***** Must get num lives from parent.
+        		}
+    	    }
+            else
+            {
+                break;
+            }
+    	}
+
+    	int num_prev_clients;		// Number of clients in previous round
+    	bool everyone_played = false;
+        int bytes_read = 0;
+    // Parent Loop
+    	while (true) {			// Infinite loop while game is runnning
+    	    num_prev_clients = num_clients;
+    	    dice1 = ((rand() % 6) + 1) ;
+    	    dice2 = ((rand() % 6) + 1) ;
+    	    while (everyone_played == false) {	// Goes through each client, if at least one is not ready, set it to false
+    //********* add timer for losing life for not doing move
+    	        everyone_played = true;
+    	        for(i = 0; i < num_clients; i++)
+                {
+                    if(!connected_clients[i].has_played)
+                    {
+                        everyone_played = false;
+                        bytes_read = read(connected_clients[i].toParentMovePipe[0],connected_clients[i].move,BUFFER_SIZE);
+                        if(bytes_read > 0)
+                        {
+                            connected_clients[i].has_played = true;
+                        }
+                    }
+    	        }
+    	    }
+    	    for(i = 0; i < num_clients; i++) {			// Calculates the outcome for each player
+    	        calculate (dice1, dice2, connected_clients[i].move, &connected_clients[i]);
+    	    }
+    	    kick_player();
+    	    if (num_clients == 1) {
+        		send_victory(connected_clients[0]);
+        		break;			// Breaks to end the game
+    	    }
+    	    if (num_clients == 0) {	// There is a tie
+        		for(i = 0; i < num_prev_clients; i++) {
+        		    send_victory(connected_clients[i]);
+        		    break;
+        		}
+    	    }
+    	}
     }
 }
