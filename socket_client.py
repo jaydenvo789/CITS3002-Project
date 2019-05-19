@@ -1,4 +1,5 @@
 import socket
+import sys
 from time import sleep
 
 current_message = ""
@@ -33,8 +34,6 @@ def recv_message(socket):
     message = socket.recv(14).decode()
     return message
 
-def send_message(socket,message):
-    sock.sendall(str(len(message)).encode)
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # Connect the socket to the port where the server is listening
@@ -55,7 +54,7 @@ try:
             response = recv_message(sock)
             sleep(10)
     while True:
-      client_id = response[-3:]
+      client_id = response[-1:]
       game_status = recv_message(sock)
       #Server Notified not enough players for match
       if game_status == "CANCEL":

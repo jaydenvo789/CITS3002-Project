@@ -29,14 +29,13 @@ typedef struct
     int num_lives;
     char *client_id;
     bool has_played; //Bool expression to indicate that the
-    char move[BUFFER_SIZE] //to store move made by client
+    int move[BUFFER_SIZE]; //to store move made by client
     int toParentMovePipe[2];		// Pipe child uses to write the move to parent
     int fromParentPipe[2];		// Pipe child uses to read from parent
 } Client;
 
 int dice1, dice2;
 int i;
-
 bool validate_message(char * message, char *client_id)
 {
     if (strlen(message) > 14) {
@@ -86,55 +85,6 @@ bool validate_message(char * message, char *client_id)
     return false;
 }
 
-/*
-*Kicks player out by removing them from pointer containing connected clients
-*Will not kick players out if draw
-*@param num_clients: Number of clients still connected
-*@param connected_clients: Pointer containing list of connected clients
-*@return void
-*/
-void kick_player(int *num_clients,Client *connected_clients)
-{
-    int num_people_kicked = 0;
-    for(int i = 0; i < num_clients; i++)
-    {
-        if (connected_clients[i]->num_lives == 0)
-        {
-            num_people_kicked++;
-        }
-    }
-    if(num_people_kicked != num_clients) //Not a draw
-    {
-        Client *surviving_players;
-        int index = 0;
-        if(surviving_players == NULL)
-        {
-            printf("Cannot allocate %i bytes of memory\n",bytes_required);
-            exit(EXIT_FAILURE);
-        }
-        int bytes_required = (num_clients - num_people_kicked) * sizeof(Client);
-        for(int j = 0; j < num_clients; j++)
-        {
-            if (connected_clients[i]->num_lives == 0) //Client dead so kick them
-            {
-                strcpy(result_message,client->client_id);
-                strcat(result_message,",ELIM");
-                send_message(result_message, client->client_fd);
-            }
-            else
-            {
-                surviving_players[index] = connected_clients[i]
-                index++
-            }
-        }
-        *(num_clients) = *num_clients - num_people_kicked;
-        *(connected_clients) = surviving_players;
-    }
-    else
-    {
-        *(num_clients) = 0;
-    }
-}
 
 /*
 *Sends client a message.
@@ -293,15 +243,71 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
     if (failed_round)
     {
         strcat(result_message,",FAIL");
-        send_message(result_message, client->client_fd);
-
+        write(client->fromParentPipe[1],result_message,strlen(result_message));
         client->num_lives--;
         printf("Player has this failed round, lives left: %d\n", client->num_lives);
     }
     else {
         strcat(result_message,",PASS");
-        send_message(result_message, client->client_fd);
+        write(client->fromParentPipe[1],result_message,strlen(result_message));
         printf("Player has survived... this round\n");
+    }
+}
+
+/*
+*Kicks player out by removing them from pointer containing connected clients
+*Will not kick players out if draw
+*@param num_clients: Number of clients still connected
+*@param connected_clients: Pointer containing list of connected clients
+*@return void
+*/
+int kick_player(int num_clients,Client *connected_clients)
+{
+    printf("%s kkkakfafka\n",connected_clients[0].client_id);
+    int num_people_kicked = 0;
+    for(int i = 0; i < num_clients; i++)
+    {
+        if (connected_clients[i].num_lives == 0)
+        {
+            num_people_kicked++;
+            break;
+        }
+    }
+    if(num_people_kicked != num_clients) //Not a draw
+    {
+        Client *surviving_players = calloc(num_clients-num_people_kicked,sizeof(Client));
+        int index = 0;
+        if(surviving_players == NULL)
+        {
+            printf("Unable to allocate memory\n");
+            exit(EXIT_FAILURE);
+        }
+        for(int j = 0; j < num_clients; j++)
+        {
+            char *result_message;
+            if (connected_clients[i].num_lives == 0) //Client dead so kick them
+            {
+                result_message = malloc(strlen(",ELIM")+2);
+                printf("%s\n",connected_clients[i].client_id);
+                strcpy(result_message,connected_clients[i].client_id);
+                strcat(result_message,",ELIM");
+                send_message(result_message, connected_clients[i].client_fd);
+                free(result_message);
+                close(connected_clients[i].client_fd);
+            }
+            else
+            {
+                surviving_players[index] = connected_clients[i];
+                index++;
+            }
+        }
+        num_clients = num_clients - num_people_kicked;
+        connected_clients = surviving_players;
+        return num_clients;
+    }
+    else
+    {
+        return 0;
     }
 }
 
@@ -341,7 +347,6 @@ int main (int argc, char *argv[]) {
 
     int id_iterator = 1;
     int num_clients = 0;
-    char pipe_buf[BUFFER_SIZE];
     Client *connected_clients;
     while (true) {
 // *************** Add timer/max players
@@ -352,14 +357,15 @@ int main (int argc, char *argv[]) {
             fprintf(stderr,"Could not establish connection with new client\n");
             continue;
         }
-        sprintf(client_id, "%d", id_iterator); 			// Set client id
+        char client_id[10];
+        sprintf(client_id, "%d", id_iterator); 			// Set client ids
         id_iterator = (id_iterator + 1) % 10;
         Client client = {client_fd,num_lives,client_id,false};
         pipe(client.toParentMovePipe);
         pipe(client.fromParentPipe);
         num_clients++;
         //Store a connected reference to the client
-        if(connected_clients == NULL)
+        if(connected_clients)
         {
             connected_clients = calloc(1,sizeof(Client));
             connected_clients[num_clients-1] = client;
@@ -374,29 +380,36 @@ int main (int argc, char *argv[]) {
             printf("Cannot allocate %lu bytes of memory\n",num_clients * sizeof(Client));
             exit(EXIT_FAILURE);
         }
-
     	for(i = 0; i < num_clients; i++) 		// Create a child for each client
     	{
     	    if(fork() == 0)				// If child
     	    {
+                char read_buf[BUFFER_SIZE];
         		printf("I am a child\n");
         		Client player = connected_clients[i];	// Set the current player
-        		char *response = receive_message(player.client_fd);
+        		char *response = receive_message(player.client_fd); //Receive INIT
         		parse_message(response, player);
 
         		char start_message[BUFFER_SIZE];
         		sprintf(start_message,"START,%i,%i",1,num_lives);
-        		send_message(start_message,player.client_fd);
-
-        		while (player.num_lives > 0) {			// Plays the game, looping while there is lives left
+        		send_message(start_message,player.client_fd); //Send start to Client
+                int num_lives = player.num_lives;
+        		while (num_lives > 0)
+                {			// Plays the game, looping while there is lives left
         		    response = receive_message(player.client_fd);
         		    while (strstr(response, "MOV") == NULL) {	// Wait for move
         		        response = receive_message(player.client_fd);
         		    }
-                    char *parsed_response = parse_message(response, player);
-        		    write(player.toParentMovePipe[1],parsed_response,strlen(parsed_response)+1);
-        // ***** Must get num lives from parent.
+                    int parsed_response = parse_message(response, player);
+        		    write(player.toParentMovePipe[1],&parsed_response, sizeof(int));
+                    read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
+                    if(strstr(read_buf,"FAIL") != NULL)
+                    {
+                        num_lives--;
+                    }
+                    send_message(read_buf,client.client_fd);
         		}
+                exit(EXIT_SUCCESS);
     	    }
             else
             {
@@ -409,6 +422,10 @@ int main (int argc, char *argv[]) {
         int bytes_read = 0;
     // Parent Loop
     	while (true) {			// Infinite loop while game is runnning
+            for(int i = 0; i < num_clients;i++)
+            {
+                connected_clients[i].has_played = false;
+            }
     	    num_prev_clients = num_clients;
     	    dice1 = ((rand() % 6) + 1) ;
     	    dice2 = ((rand() % 6) + 1) ;
@@ -420,7 +437,7 @@ int main (int argc, char *argv[]) {
                     if(!connected_clients[i].has_played)
                     {
                         everyone_played = false;
-                        bytes_read = read(connected_clients[i].toParentMovePipe[0],connected_clients[i].move,BUFFER_SIZE);
+                        bytes_read = read(connected_clients[i].toParentMovePipe[0],&connected_clients[i].move,1);
                         if(bytes_read > 0)
                         {
                             connected_clients[i].has_played = true;
@@ -428,17 +445,20 @@ int main (int argc, char *argv[]) {
                     }
     	        }
     	    }
-    	    for(i = 0; i < num_clients; i++) {			// Calculates the outcome for each player
-    	        calculate (dice1, dice2, connected_clients[i].move, &connected_clients[i]);
-    	    }
-    	    kick_player();
+            for(int i = 0; i <num_clients;i++)
+            {
+    	        calculate (dice1, dice2, *connected_clients[i].move, &connected_clients[i]);
+            }
+    	    num_clients = kick_player(num_clients,connected_clients);
     	    if (num_clients == 1) {
         		send_victory(connected_clients[0]);
+                close(connected_clients[0].client_fd);
         		break;			// Breaks to end the game
     	    }
     	    if (num_clients == 0) {	// There is a tie
         		for(i = 0; i < num_prev_clients; i++) {
         		    send_victory(connected_clients[i]);
+                    close(connected_clients[i].client_fd);
         		    break;
         		}
     	    }
