@@ -16,7 +16,7 @@ typedef struct
     int num_lives;
     int client_fd;
     bool has_played; //Bool expression to indicate that the
-    int move[BUFFER_SIZE]; //to store move made by client
+    int move; //to store move made by client
     int toParentMovePipe[2];		// Pipe child uses to write the move to parent
     int fromParentPipe[2];		// Pipe child uses to read from parent
 } Client;
@@ -109,7 +109,7 @@ char* receive_message(int sender_fd)
 // Function called by child to interpret message
 int parse_message(char *message, Client client )
 {
-    int enum_value = 10;		// Default, empty value
+    int enum_value = 9;		// Default, empty value
     if(validate_message(message,client.client_id))
     {
         if(strstr(message,"INIT") != NULL)
@@ -196,7 +196,7 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
         exit(EXIT_FAILURE);
     }
 
-    if (enum_value < 0 || enum_value > 8)
+    if (enum_value < 0 || enum_value > 9)
     {
         fprintf(stderr,"Invalid enum value");
         return;
@@ -220,6 +220,11 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
         printf("Player %s chose Even\n",client->client_id);
     }
 
+    else if (enum_value == 9)
+    {
+        failed_round = true;
+        printf("Player %s did not select a move\n",client->client_id);
+    }
     else
     {
         if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
@@ -349,13 +354,14 @@ int main (int argc, char *argv[]) {
             char client_id[2];
             id_iterator = (id_iterator + 1) % 10;
             sprintf(client_id, "%d", id_iterator); 			// Set client ids
-            Client single_client = {client_id,num_lives,client_fd,false};
+            Client single_client = {client_id,num_lives,client_fd,false,9};
             if(num_clients == 1)
             {
                 printf("%s\n",connected_clients[0].client_id);
             }
             pipe(single_client.toParentMovePipe);
             pipe(single_client.fromParentPipe);
+            fcntl(*single_client.toParentMovePipe, F_SETFL, O_NONBLOCK);
             num_clients++;
             //Store a connected reference to the client
             if(num_clients == 1)
@@ -384,6 +390,7 @@ int main (int argc, char *argv[]) {
                     continue;
                 }
                 send_message("REJECT",client_fd);
+                sleep(1);
             }
         }
     	for(int i = 0; i < num_clients; i++) 		// Create a child for each client
@@ -461,12 +468,21 @@ int main (int argc, char *argv[]) {
             {
                 connected_clients[i].has_played = false;
             }
+            time_t time_current, time_start;
+            double elapsed_time;
             everyone_played = false;
     	    num_prev_clients = num_clients;
     	    dice1 = ((rand() % 6) + 1) ;
     	    dice2 = ((rand() % 6) + 1) ;
+            time(&time_start);
             printf("Dice 1: %i, Dice 2: %i\n",dice1,dice2);
     	    while (everyone_played == false) {	// Goes through each client, if at least one is not ready, set it to false
+                time(&time_current);
+                elapsed_time = difftime(time_current, time_start);
+                if(elapsed_time > 10)
+                {
+                    break;
+                }
                 //add timer for losing life for not doing move
     	        everyone_played = true;
     	        for(int i =  0; i < num_clients; i++)
@@ -484,17 +500,19 @@ int main (int argc, char *argv[]) {
     	    }
             for(int i = 0; i <num_clients;i++)
             {
-    	        calculate (dice1, dice2, *connected_clients[i].move, &connected_clients[i]);
+    	        calculate (dice1, dice2, connected_clients[i].move, &connected_clients[i]);
             }
     	    num_clients = kick_player(num_clients,connected_clients);
     	    if (num_clients == 1) {
                 write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
                 close(connected_clients[0].client_fd);
+                close(server_fd);
                 exit(EXIT_SUCCESS);
     	    }
     	    else if (num_clients == 0) {	// There is a tie
         		for(int i = 0; i < num_prev_clients; i++) {
                     write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT"));
+                    close(server_fd);
                     close(connected_clients[i].client_fd);
         		}
                 exit(EXIT_SUCCESS);
@@ -504,6 +522,7 @@ int main (int argc, char *argv[]) {
                 for(int i = 0; i < num_clients;i++)
                 {
                     connected_clients[i].has_played = false;
+                    connected_clients[i].move = 9;
                 }
             }
     	}
