@@ -12,9 +12,9 @@
 
 typedef struct
 {
-    int client_fd;
-    int num_lives;
     char *client_id;
+    int num_lives;
+    int client_fd;
     bool has_played; //Bool expression to indicate that the
     int move[BUFFER_SIZE]; //to store move made by client
     int toParentMovePipe[2];		// Pipe child uses to write the move to parent
@@ -329,7 +329,7 @@ int main (int argc, char *argv[]) {
     double elapsed;
     int max_clients = 10;
     int num_clients = 0;
-    int id_iterator = 1;
+    int id_iterator = 0;
     Client *connected_clients;
     time(&timer_start);
     while (true) {
@@ -346,10 +346,14 @@ int main (int argc, char *argv[]) {
                 // printf("%f\n",elapsed);
                 continue;
             }
-            char client_id[10];
-            sprintf(client_id, "%d", id_iterator); 			// Set client ids
+            char client_id[2];
             id_iterator = (id_iterator + 1) % 10;
-            Client single_client = {client_fd,num_lives,client_id,false};
+            sprintf(client_id, "%d", id_iterator); 			// Set client ids
+            Client single_client = {client_id,num_lives,client_fd,false};
+            if(num_clients == 1)
+            {
+                printf("%s\n",connected_clients[0].client_id);
+            }
             pipe(single_client.toParentMovePipe);
             pipe(single_client.fromParentPipe);
             num_clients++;
@@ -368,6 +372,18 @@ int main (int argc, char *argv[]) {
             {
                 printf("Cannot allocate %lu bytes of memory\n",num_clients * sizeof(Client));
                 exit(EXIT_FAILURE);
+            }
+        }
+        if(fork() == 0)
+        {
+            while(true)
+            {
+                client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
+                if (client_fd < 0) {
+                    // printf("%f\n",elapsed);
+                    continue;
+                }
+                send_message("REJECT",client_fd);
             }
         }
     	for(int i = 0; i < num_clients; i++) 		// Create a child for each client
