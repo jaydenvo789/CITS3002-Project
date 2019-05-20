@@ -20,7 +20,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
-
+#include <fcntl.h>
 #define BUFFER_SIZE 1024
 
 typedef struct
@@ -35,7 +35,6 @@ typedef struct
 } Client;
 
 int dice1, dice2;
-int i;
 bool validate_message(char * message, char *client_id)
 {
     if (strlen(message) > 14) {
@@ -97,7 +96,7 @@ void send_message(char *message, int destination_fd)
 {
     int err = send(destination_fd,message,strlen(message),0);
     if (err < 0){
-        fprintf(stderr,"Client write failed\n");
+        fprintf(stderr,"Client write failed - %s\n",message);
         exit(EXIT_FAILURE);
     }
     sleep(1);
@@ -263,7 +262,6 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
 */
 int kick_player(int num_clients,Client *connected_clients)
 {
-    printf("%s kkkakfafka\n",connected_clients[0].client_id);
     int num_people_kicked = 0;
     for(int i = 0; i < num_clients; i++)
     {
@@ -285,19 +283,13 @@ int kick_player(int num_clients,Client *connected_clients)
         for(int j = 0; j < num_clients; j++)
         {
             char *result_message;
-            if (connected_clients[i].num_lives == 0) //Client dead so kick them
+            if (connected_clients[j].num_lives == 0) //Client dead so kick them
             {
-                result_message = malloc(strlen(",ELIM")+2);
-                printf("%s\n",connected_clients[i].client_id);
-                strcpy(result_message,connected_clients[i].client_id);
-                strcat(result_message,",ELIM");
-                send_message(result_message, connected_clients[i].client_fd);
-                free(result_message);
-                close(connected_clients[i].client_fd);
+                close(connected_clients[j].client_fd);
             }
             else
             {
-                surviving_players[index] = connected_clients[i];
+                surviving_players[index] = connected_clients[j];
                 index++;
             }
         }
@@ -333,6 +325,7 @@ int main (int argc, char *argv[]) {
     opt_val = 1;
 
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof opt_val);
+    fcntl(server_fd,F_SETFL, O_NONBLOCK); //Set server socket to non blocking
     err = bind(server_fd, (struct sockaddr *) &server, sizeof(server));
     if (err < 0){
         fprintf(stderr,"Could not bind socket\n");
@@ -345,43 +338,55 @@ int main (int argc, char *argv[]) {
     }
     printf("Server is listening on %d\n", port);
 
-    int id_iterator = 1;
+    time_t timer_start,timer_end;
+    double elapsed;
+    int max_clients = 10;
     int num_clients = 0;
+    int id_iterator = 1;
     Client *connected_clients;
+    time(&timer_start);
     while (true) {
-// *************** Add timer/max players
         socklen_t client_len = sizeof(client);
-        // Will block until a connection is made
-        client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
-        if (client_fd < 0) {
-            fprintf(stderr,"Could not establish connection with new client\n");
-            continue;
+        while (num_clients <= max_clients) {
+            time(&timer_end);
+            // Will block until a connection is made
+            elapsed = difftime(timer_end,timer_start);
+            if(elapsed > 6)
+            {
+                break;
+            }
+            client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
+            if (client_fd < 0) {
+                // printf("%f\n",elapsed);
+                continue;
+            }
+            char client_id[10];
+            sprintf(client_id, "%d", id_iterator); 			// Set client ids
+            id_iterator = (id_iterator + 1) % 10;
+            Client client = {client_fd,num_lives,client_id,false};
+            pipe(client.toParentMovePipe);
+            pipe(client.fromParentPipe);
+            printf("%i nnnnnnnn\n",num_clients);
+            //Store a connected reference to the client
+            if(connected_clients)
+            {
+                connected_clients = calloc(1,sizeof(Client));
+                connected_clients[num_clients-1] = client;
+            }
+            else
+            {
+                connected_clients = realloc(connected_clients,num_clients * sizeof(Client));
+                connected_clients[num_clients-1] = client;
+            }
+            if(connected_clients == NULL)
+            {
+                printf("Cannot allocate %lu bytes of memory\n",num_clients * sizeof(Client));
+                exit(EXIT_FAILURE);
+            }
         }
-        char client_id[10];
-        sprintf(client_id, "%d", id_iterator); 			// Set client ids
-        id_iterator = (id_iterator + 1) % 10;
-        Client client = {client_fd,num_lives,client_id,false};
-        pipe(client.toParentMovePipe);
-        pipe(client.fromParentPipe);
-        num_clients++;
-        //Store a connected reference to the client
-        if(connected_clients)
-        {
-            connected_clients = calloc(1,sizeof(Client));
-            connected_clients[num_clients-1] = client;
-        }
-        else
-        {
-            connected_clients = realloc(connected_clients,num_clients * sizeof(Client));
-            connected_clients[num_clients-1] = client;
-        }
-        if(connected_clients == NULL)
-        {
-            printf("Cannot allocate %lu bytes of memory\n",num_clients * sizeof(Client));
-            exit(EXIT_FAILURE);
-        }
-    	for(i = 0; i < num_clients; i++) 		// Create a child for each client
+    	for(int i = 0; i < num_clients; i++) 		// Create a child for each client
     	{
+            // printf("%d lol %d ccccc\n",i,num_clients);
     	    if(fork() == 0)				// If child
     	    {
                 char read_buf[BUFFER_SIZE];
@@ -406,8 +411,20 @@ int main (int argc, char *argv[]) {
                     if(strstr(read_buf,"FAIL") != NULL)
                     {
                         num_lives--;
+                        if(num_lives == 0)
+                        {
+                            send_message("ELIM", player.client_fd);
+                            close(player.client_fd);
+                        }
                     }
-                    send_message(read_buf,client.client_fd);
+                    send_message(read_buf,player.client_fd);
+                    read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
+                    if(strstr(read_buf,"VICT") != NULL)
+                    {
+                        send_victory(player);
+                        break;
+                    }
+
         		}
                 exit(EXIT_SUCCESS);
     	    }
@@ -430,9 +447,9 @@ int main (int argc, char *argv[]) {
     	    dice1 = ((rand() % 6) + 1) ;
     	    dice2 = ((rand() % 6) + 1) ;
     	    while (everyone_played == false) {	// Goes through each client, if at least one is not ready, set it to false
-    //********* add timer for losing life for not doing move
+                //add timer for losing life for not doing move
     	        everyone_played = true;
-    	        for(i = 0; i < num_clients; i++)
+    	        for(int i =  0; i < num_clients; i++)
                 {
                     if(!connected_clients[i].has_played)
                     {
@@ -451,17 +468,18 @@ int main (int argc, char *argv[]) {
             }
     	    num_clients = kick_player(num_clients,connected_clients);
     	    if (num_clients == 1) {
-        		send_victory(connected_clients[0]);
+                write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
                 close(connected_clients[0].client_fd);
-        		break;			// Breaks to end the game
+        		break;
     	    }
-    	    if (num_clients == 0) {	// There is a tie
-        		for(i = 0; i < num_prev_clients; i++) {
-        		    send_victory(connected_clients[i]);
+    	    else if (num_clients == 0) {	// There is a tie
+        		for(int i = 0; i < num_prev_clients; i++) {
+                    write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT"));
                     close(connected_clients[i].client_fd);
         		    break;
         		}
     	    }
+            exit(EXIT_SUCCESS);
     	}
     }
 }

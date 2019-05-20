@@ -65,7 +65,8 @@ try:
           num_lives = int(game_status[2])
           print("Match with "+ game_status[1] + " players starting")
           print("Starting Number of Lives: " + str(num_lives))
-          while num_lives > 0:
+          result = ""
+          while num_lives > 0 and "VICT" not in result:
               move = make_move(client_id)
               sock.sendall(move.encode())
               result = recv_message(sock)
@@ -75,8 +76,8 @@ try:
                   num_lives = int(num_lives) - 1
                   print("You have guessed wrongly")
                   print("Remaining Lives: " + str(num_lives))
-              else:
-                  raise UnexpectedResponseException("Unexpected Response "+ result)
+              elif "VICT" in result:
+                  break
           result = recv_message(sock)
           if "ELIM" in result:
              print("You have been eliminated")
