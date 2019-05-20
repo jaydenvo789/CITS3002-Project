@@ -55,6 +55,7 @@ try:
             sleep(10)
     while True:
       client_id = response[-1:]
+      print("Players ID: " + client_id)
       game_status = recv_message(sock)
       #Server Notified not enough players for match
       if game_status == "CANCEL":
@@ -66,7 +67,8 @@ try:
           print("Match with "+ game_status[1] + " players starting")
           print("Starting Number of Lives: " + str(num_lives))
           result = ""
-          while num_lives > 0 and "VICT" not in result:
+          finish = False
+          while num_lives > 0:
               move = make_move(client_id)
               sock.sendall(move.encode())
               result = recv_message(sock)
@@ -76,18 +78,21 @@ try:
                   num_lives = int(num_lives) - 1
                   print("You have guessed wrongly")
                   print("Remaining Lives: " + str(num_lives))
+              elif "ELIM" in result:
+                 print("You have been eliminated")
+                 finish = True
+                 break
               elif "VICT" in result:
-                  break
-          result = recv_message(sock)
-          if "ELIM" in result:
-             print("You have been eliminated")
-             break
-          else:
-             print("You are the winner")
-             break
+                 print("You are the winner")
+                 finish = True
+                 break
+              else:
+                 raise UnexpectedResponseException("Unexpected Response " + result)
       #Obtained an unexpected response
       else:
           raise UnexpectedResponseException("Unexpected Response " + game_status)
+      if finish:
+          break
 except socket.error as e:
     print('%s: Unable to connect to %s port %s' \
            % (str(e),server_address[0],server_address[1]))

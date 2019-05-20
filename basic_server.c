@@ -1,16 +1,3 @@
-/**
-* Based on code found at https://github.com/mafintosh/echo-servers.c (Copyright (c) 2014 Mathias Buus)
-* Copyright 2019 Nicholas Pritchard, Ryan Bunney
-**/
-
-/**
- * @brief A simple example of a network server written in C implementing a basic echo
- *
- * This is a good starting point for observing C-based network code but is by no means complete.
- * We encourage you to use this as a starting point for your project if you're not sure where to start.
- * Food for thought:
- *   - Can we wrap the action of sending ALL of out data and receiving ALL of the data?
- */
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -218,25 +205,25 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
     else if (enum_value == 0)    // Odd
     {    // Fails if even or dice-sum is not greater than 5
         if ((dice1 + dice2)%2 == 0 || dice1 + dice2 <= 5) failed_round = true;
-        printf("Player chose Odd\n");
+        printf("Player %s chose Odd\n",client->client_id);
     }
 
-    else if (enum_value == 7)    // Doubles
+    else if (enum_value == 7)    // Doubles            else
     {
         if (dice1 != dice2) failed_round = true;
-        printf("Player chose Doubles\n");
+        printf("Player %s chose Doubles\n",client->client_id);
     }
 
     else if (enum_value == 8)    // Even
     {    // Fails if odd or doubles
         if ((dice1 + dice2)%2 == 1 || dice1 == dice2) failed_round = true;
-        printf("Player chose Even\n");
+        printf("Player %s chose Even\n",client->client_id);
     }
 
     else
     {
         if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
-        printf("Player chose %d\n", enum_value);
+        printf("Player %s chose %d\n", client->client_id, enum_value);
     }
 
     if (failed_round)
@@ -244,12 +231,12 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
         strcat(result_message,",FAIL");
         write(client->fromParentPipe[1],result_message,strlen(result_message));
         client->num_lives--;
-        printf("Player has this failed round, lives left: %d\n", client->num_lives);
+        printf("Player %s has this failed round, lives left: %d\n", client->client_id, client->num_lives);
     }
     else {
         strcat(result_message,",PASS");
         write(client->fromParentPipe[1],result_message,strlen(result_message));
-        printf("Player has survived... this round\n");
+        printf("Player %s has survived... this round\n",client->client_id);
     }
 }
 
@@ -349,7 +336,6 @@ int main (int argc, char *argv[]) {
         socklen_t client_len = sizeof(client);
         while (num_clients <= max_clients) {
             time(&timer_end);
-            // Will block until a connection is made
             elapsed = difftime(timer_end,timer_start);
             if(elapsed > 6)
             {
@@ -363,20 +349,20 @@ int main (int argc, char *argv[]) {
             char client_id[10];
             sprintf(client_id, "%d", id_iterator); 			// Set client ids
             id_iterator = (id_iterator + 1) % 10;
-            Client client = {client_fd,num_lives,client_id,false};
-            pipe(client.toParentMovePipe);
-            pipe(client.fromParentPipe);
-            printf("%i nnnnnnnn\n",num_clients);
+            Client single_client = {client_fd,num_lives,client_id,false};
+            pipe(single_client.toParentMovePipe);
+            pipe(single_client.fromParentPipe);
+            num_clients++;
             //Store a connected reference to the client
-            if(connected_clients)
+            if(num_clients == 1)
             {
                 connected_clients = calloc(1,sizeof(Client));
-                connected_clients[num_clients-1] = client;
+                connected_clients[num_clients-1] = single_client;
             }
             else
             {
                 connected_clients = realloc(connected_clients,num_clients * sizeof(Client));
-                connected_clients[num_clients-1] = client;
+                connected_clients[num_clients-1] = single_client;
             }
             if(connected_clients == NULL)
             {
@@ -386,7 +372,6 @@ int main (int argc, char *argv[]) {
         }
     	for(int i = 0; i < num_clients; i++) 		// Create a child for each client
     	{
-            // printf("%d lol %d ccccc\n",i,num_clients);
     	    if(fork() == 0)				// If child
     	    {
                 char read_buf[BUFFER_SIZE];
@@ -410,42 +395,61 @@ int main (int argc, char *argv[]) {
                     read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
                     if(strstr(read_buf,"FAIL") != NULL)
                     {
+                        char *fail_message = read_buf;
                         num_lives--;
                         if(num_lives == 0)
                         {
                             send_message("ELIM", player.client_fd);
                             close(player.client_fd);
+                            break;
+                        }
+                        read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
+                        if(strstr(read_buf,"VICT") != NULL)
+                        {
+                            send_victory(player);
+                            close(player.client_fd);
+                            break;
+                        }
+                        else
+                        {
+                            send_message(fail_message, player.client_fd);
                         }
                     }
-                    send_message(read_buf,player.client_fd);
-                    read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
-                    if(strstr(read_buf,"VICT") != NULL)
+                    if(strstr(read_buf,"PASS") != NULL)
                     {
-                        send_victory(player);
-                        break;
+                        char *pass_message = read_buf;
+                        read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
+                        if(strstr(read_buf,"VICT") != NULL) //No need to send pass message. Just Victory
+                        {
+                            send_victory(player);
+                            close(player.client_fd);
+                            break;
+                        }
+                        else
+                        {
+                            send_message(pass_message, player.client_fd);
+                        }
                     }
 
         		}
                 exit(EXIT_SUCCESS);
     	    }
-            else
-            {
-                break;
-            }
     	}
 
     	int num_prev_clients;		// Number of clients in previous round
-    	bool everyone_played = false;
-        int bytes_read = 0;
+        int bytes_read;
+        bool everyone_played;
     // Parent Loop
     	while (true) {			// Infinite loop while game is runnning
             for(int i = 0; i < num_clients;i++)
             {
                 connected_clients[i].has_played = false;
             }
+            everyone_played = false;
     	    num_prev_clients = num_clients;
     	    dice1 = ((rand() % 6) + 1) ;
     	    dice2 = ((rand() % 6) + 1) ;
+            printf("Dice 1: %i, Dice 2: %i\n",dice1,dice2);
     	    while (everyone_played == false) {	// Goes through each client, if at least one is not ready, set it to false
                 //add timer for losing life for not doing move
     	        everyone_played = true;
@@ -470,16 +474,22 @@ int main (int argc, char *argv[]) {
     	    if (num_clients == 1) {
                 write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
                 close(connected_clients[0].client_fd);
-        		break;
+                exit(EXIT_SUCCESS);
     	    }
     	    else if (num_clients == 0) {	// There is a tie
         		for(int i = 0; i < num_prev_clients; i++) {
                     write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT"));
                     close(connected_clients[i].client_fd);
-        		    break;
         		}
+                exit(EXIT_SUCCESS);
     	    }
-            exit(EXIT_SUCCESS);
+            else
+            {
+                for(int i = 0; i < num_clients;i++)
+                {
+                    connected_clients[i].has_played = false;
+                }
+            }
     	}
     }
 }
