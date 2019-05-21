@@ -443,7 +443,8 @@ int main (int argc, char *argv[]) {
                     read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
                     if(strstr(read_buf,"FAIL") != NULL)
                     {
-                        char *fail_message = read_buf;
+                        char *fail_message = malloc(strlen(read_buf)+1);
+                        strcpy(fail_message,read_buf);
                         num_lives--;
                         if(num_lives == 0)
                         {
@@ -465,8 +466,8 @@ int main (int argc, char *argv[]) {
                     }
                     if(strstr(read_buf,"PASS") != NULL)
                     {
-			printf("Yes\n");
-                        char *pass_message = read_buf;
+                        char *pass_message = malloc(strlen(read_buf)+1);
+                        strcpy(pass_message,read_buf);
                         read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
                         if(strstr(read_buf,"VICT") != NULL) //No need to send pass message. Just Victory
                         {
@@ -478,6 +479,7 @@ int main (int argc, char *argv[]) {
                         {
                             send_message(pass_message, player.client_fd);
                         }
+                        free(pass_message);
                     }
         		}
                 close(server_fd);
@@ -551,6 +553,7 @@ int main (int argc, char *argv[]) {
             {
                 for(int i = 0; i < num_clients;i++)
                 {
+                    write(connected_clients[i].fromParentPipe[1],"continue",strlen("continue")+1);
                     connected_clients[i].has_played = false;
                     connected_clients[i].move = 9;
                 }

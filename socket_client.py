@@ -72,6 +72,8 @@ try:
               move = make_move(client_id)
               sock.sendall(move.encode())
               result = recv_message(sock)
+              print(result,num_lives)
+              print("RECEVED BOIIIIIII")
               if result.endswith("PASS"):
                 print("You have guessed correctly")
               elif result.endswith("FAIL"):
@@ -80,14 +82,12 @@ try:
                   print("Remaining Lives: " + str(num_lives))
               elif "VICT" in result:
                  print("You are the winner")
-                 finish = True
                  break
+              elif "ELIM" in result:
+                print("You have been eliminated")
+                break
               else:
                  raise UnexpectedResponseException("Unexpected Response " + result)
-          result = recv_message(sock)
-          if "ELIM" in result:
-            print("You have been eliminated")
-            finish = True
       #Obtained an unexpected response
       else:
           raise UnexpectedResponseException("Unexpected Response " + game_status)
