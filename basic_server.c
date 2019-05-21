@@ -13,7 +13,7 @@
 #define ROUND_WAITING_TIME 10
 typedef struct
 {
-    char *client_id;
+    int client_id;
     int num_lives;
     int client_fd;
     bool has_played; //Bool expression to indicate that the
@@ -30,7 +30,7 @@ int dice1, dice2;
 *@param message: Message received from the client
 *@return bool: True if message is in correct format, else false
 */
-bool validate_message(char * message, char *client_id)
+bool validate_message(char * message, int client_id)
 {
     if (strlen(message) > 14) {
         printf("The packet is too long, causing it to be invalid\n");
@@ -41,14 +41,14 @@ bool validate_message(char * message, char *client_id)
     {
         char packet[14];
         if (strstr(message,"EVEN") != NULL) {
-            sprintf(packet,"%s,MOV,EVEN", client_id);
+            sprintf(packet,"%d,MOV,EVEN", client_id);
             if(strcmp(message, packet) != 0) {
                 printf("Invalid EVEN move packet\n");
                 return false;
             }
         }
         if (strstr(message,"ODD") != NULL) {
-            sprintf(packet,"%s,MOV,ODD", client_id);
+            sprintf(packet,"%d,MOV,ODD", client_id);
             if(strcmp(message, packet) != 0) {
                 printf("Invalid ODD move packet\n");
                 return false;
@@ -56,14 +56,14 @@ bool validate_message(char * message, char *client_id)
         }
 
         if (strstr(message,"DOUB") != NULL) {
-            sprintf(packet,"%s,MOV,DOUB", client_id);
+            sprintf(packet,"%d,MOV,DOUB", client_id);
             if(strcmp(message, packet) != 0) {
                 printf("Invalid DOUB move packet\n");
                 return false;
             }
         }
         if (strstr(message,"CON") != NULL) {
-            sprintf(packet,"%s,MOV,CON,", client_id);
+            sprintf(packet,"%d,MOV,CON,", client_id);
             if(strstr(message, packet) == NULL) {
                 printf("Invalid CON move packet\n");
                 return false;
@@ -129,12 +129,11 @@ int parse_message(char *message, Client client )
     {
         if(strstr(message,"INIT") != NULL)
         {
-            int bytes_required = strlen("WELCOME,") + strlen(client.client_id) + 1;
+            int bytes_required = strlen("WELCOME,") + sizeof(char) + 1;
             char *welcome_message = calloc(bytes_required, sizeof(char));
             if(welcome_message != NULL)
             {
-                strcpy(welcome_message,"WELCOME,");
-                strcat(welcome_message,client.client_id);
+                sprintf("WELCOME,%d",client.client_id);
                 send_message(welcome_message, client.client_fd);
                 printf("Sent welcome message!\n");
             }
@@ -200,10 +199,10 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
     // enumvalues - 0 = Odd, 1-6 = Choice of Dice, 7 = Doubles, 8 = Even
     bool failed_round = false;
 
-    int bytes_required = strlen(client->client_id) + strlen(",XXXX") + 1;
+    int bytes_required = sizeof(char) + strlen(",XXXX") + 1;
     char *result_message = calloc(bytes_required, sizeof(char));
 
-    if(result_message != NULL) strcpy(result_message,client->client_id);
+    if(result_message != NULL) sprintf(result_message,"%d",client->client_id);
 
     else
     {
@@ -220,30 +219,30 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
     else if (enum_value == 0)    // Odd
     {    // Fails if even or dice-sum is not greater than 5
         if ((dice1 + dice2)%2 == 0 || dice1 + dice2 <= 5) failed_round = true;
-        printf("Player %s chose Odd\n",client->client_id);
+        printf("Player %d chose Odd\n",client->client_id);
     }
 
     else if (enum_value == 7)    // Doubles            else
     {
         if (dice1 != dice2) failed_round = true;
-        printf("Player %s chose Doubles\n",client->client_id);
+        printf("Player %d chose Doubles\n",client->client_id);
     }
 
     else if (enum_value == 8)    // Even
     {    // Fails if odd or doubles
         if ((dice1 + dice2)%2 == 1 || dice1 == dice2) failed_round = true;
-        printf("Player %s chose Even\n",client->client_id);
+        printf("Player %d chose Even\n",client->client_id);
     }
 
     else if (enum_value == 9)
     {
         failed_round = true;
-        printf("Player %s did not select a move\n",client->client_id);
+        printf("Player %d did not select a move\n",client->client_id);
     }
     else
     {
         if (dice1 != enum_value && dice2 != enum_value) failed_round = true;
-        printf("Player %s chose %d\n", client->client_id, enum_value);
+        printf("Player %d chose %d\n", client->client_id, enum_value);
     }
 
     if (failed_round)
@@ -251,12 +250,12 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
         strcat(result_message,",FAIL");
         write(client->fromParentPipe[1],result_message,strlen(result_message)+1);
         client->num_lives--;
-        printf("Player %s has this failed round, lives left: %d\n", client->client_id, client->num_lives);
+        printf("Player %d has this failed round, lives left: %d\n", client->client_id, client->num_lives);
     }
     else {
         strcat(result_message,",PASS");
         write(client->fromParentPipe[1],result_message,strlen(result_message)+1);
-        printf("Player %s has survived... this round\n",client->client_id);
+        printf("Player %d has survived... this round\n",client->client_id);
     }
 }
 
@@ -353,6 +352,7 @@ int main (int argc, char *argv[]) {
     time(&timer_start);
     while (true) {
         socklen_t client_len = sizeof(client);
+        char client_id[2];
         while (num_clients <= max_clients) {
             time(&timer_end);
             elapsed = difftime(timer_end,timer_start);
@@ -365,10 +365,10 @@ int main (int argc, char *argv[]) {
                 // printf("%f\n",elapsed);
                 continue;
             }
-            char client_id[2];
             id_iterator = (id_iterator + 1) % 10;
-            sprintf(client_id, "%d", id_iterator); 			// Set client ids
-            Client single_client = {client_id,num_lives,client_fd,false,9};
+            // snprintf(client_id, 2, "%d", id_iterator);
+            // sprintf(client_id, "%d", id_iterator); 			// Set client ids
+            Client single_client = {id_iterator,num_lives,client_fd,false,9};
             pipe(single_client.toParentMovePipe);
             pipe(single_client.fromParentPipe);
             fcntl(*single_client.toParentMovePipe, F_SETFL, O_NONBLOCK);
