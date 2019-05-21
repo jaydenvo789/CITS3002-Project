@@ -72,8 +72,6 @@ try:
               move = make_move(client_id)
               sock.sendall(move.encode())
               result = recv_message(sock)
-              print(result,num_lives)
-              print("RECEVED BOIIIIIII")
               if result.endswith("PASS"):
                 print("You have guessed correctly")
               elif result.endswith("FAIL"):

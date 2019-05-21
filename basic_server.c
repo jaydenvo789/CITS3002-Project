@@ -295,6 +295,7 @@ int kick_player(int num_clients,Client **connected_clients)
             if (copy_connected_clients[j].num_lives == 0) //Client dead so kick them
             {
                 send_message("ELIM", copy_connected_clients[j].client_fd);
+                write(copy_connected_clients[j].fromParentPipe[1],"ELIM",sizeof("ELIM")+1);
                 close(copy_connected_clients[j].client_fd);
             }
             else
@@ -450,19 +451,17 @@ int main (int argc, char *argv[]) {
                         char *fail_message = malloc(strlen(read_buf)+1);
                         strcpy(fail_message,read_buf);
                         num_lives--;
-/**
-                        if(num_lives == 0)
-                        {
-                            send_message("ELIM", player.client_fd);
-                            close(player.client_fd);
-                            break;
-                        }
-**/
                         read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
                         if(strstr(read_buf,"VICT") != NULL)
                         {
                             send_victory(player);
                             close(player.client_fd);
+                            break;
+                        }
+                        else if(strstr(read_buf,"ELIM") != NULL)
+                        {
+                            close(player.client_fd);
+                            printf("YA SUPPOSE TO ELAVE\n");
                             break;
                         }
                         else
@@ -551,7 +550,7 @@ int main (int argc, char *argv[]) {
 		    printf("There was a tie\n");
         		for(int i = 0; i < num_prev_clients; i++) {
                     write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT")+1);
-                    write(reject_process_fd[1],"STOP",strlen("STOP")+1);
+                    write(reject_process_fd[1],"stop",strlen("stop")+1);
                     close(connected_clients[i].client_fd);
         		}
                 close(server_fd);
