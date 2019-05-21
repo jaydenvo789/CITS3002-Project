@@ -428,7 +428,7 @@ int main (int argc, char *argv[]) {
         		parse_message(response, player);
 
         		char start_message[BUFFER_SIZE];
-        		sprintf(start_message,"START,%i,%i",1,num_lives);
+        		sprintf(start_message,"START,%i,%i",num_clients,num_lives);
         		send_message(start_message,player.client_fd); //Send start to Client
                 int num_lives = player.num_lives;
         		while (num_lives > 0)
@@ -438,6 +438,7 @@ int main (int argc, char *argv[]) {
         		        response = receive_message(player.client_fd);
         		    }
                     int parsed_response = parse_message(response, player);
+		    printf("parsed response %i\n", parsed_response);
         		    write(player.toParentMovePipe[1],&parsed_response, sizeof(int));
                     read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
                     if(strstr(read_buf,"FAIL") != NULL)
@@ -464,6 +465,7 @@ int main (int argc, char *argv[]) {
                     }
                     if(strstr(read_buf,"PASS") != NULL)
                     {
+			printf("Yes\n");
                         char *pass_message = read_buf;
                         read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
                         if(strstr(read_buf,"VICT") != NULL) //No need to send pass message. Just Victory
@@ -512,7 +514,7 @@ int main (int argc, char *argv[]) {
     	        everyone_played = true;
     	        for(int i =  0; i < num_clients; i++)
                 {
-                    printf("client %i, has played? %i\n",i,connected_clients[i].has_played);
+                    // printf("client %i, has played? %i\n",i,connected_clients[i].has_played);
                     if(!connected_clients[i].has_played)
                     {
                         everyone_played = false;
@@ -523,7 +525,6 @@ int main (int argc, char *argv[]) {
                         }
                     }
     	        }
-                sleep(1);
     	    }
             for(int i = 0; i <num_clients;i++)
             {

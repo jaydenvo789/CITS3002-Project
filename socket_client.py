@@ -78,16 +78,16 @@ try:
                   num_lives = int(num_lives) - 1
                   print("You have guessed wrongly")
                   print("Remaining Lives: " + str(num_lives))
-              elif "ELIM" in result:
-                 print("You have been eliminated")
-                 finish = True
-                 break
               elif "VICT" in result:
                  print("You are the winner")
                  finish = True
                  break
               else:
                  raise UnexpectedResponseException("Unexpected Response " + result)
+          result = recv_message(sock)
+          if "ELIM" in result:
+            print("You have been eliminated")
+            finish = True
       #Obtained an unexpected response
       else:
           raise UnexpectedResponseException("Unexpected Response " + game_status)
