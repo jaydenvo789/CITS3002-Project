@@ -303,7 +303,7 @@ int kick_player(int num_clients,Client *connected_clients)
             }
         }
         num_clients = num_clients - num_people_kicked;
-        a_connected_clients = &surviving_players;
+        *a_connected_clients = surviving_players;
         return num_clients;
     }
     else
