@@ -267,13 +267,14 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
 *@param connected_clients: Pointer containing list of connected clients
 *@return void
 */
-int kick_player(int num_clients,Client *connected_clients)
+int kick_player(int num_clients,Client **connected_clients)
 {
-    Client **a_connected_clients = &connected_clients;
+
+    Client *copy_connected_clients = *connected_clients;
     int num_people_kicked = 0;
     for(int i = 0; i < num_clients; i++)
     {
-        if (connected_clients[i].num_lives == 0)
+        if (a_connected_clients[i].num_lives == 0)
         {
             num_people_kicked++;
         }
@@ -291,19 +292,20 @@ int kick_player(int num_clients,Client *connected_clients)
         {
 	    printf("kicking %d, clients %d\n", num_people_kicked, num_clients);
             char *result_message;
-            if (connected_clients[j].num_lives == 0) //Client dead so kick them
+            if (a_connected_clients[j].num_lives == 0) //Client dead so kick them
             {
-                send_message("ELIM", connected_clients[j].client_fd);
-                close(connected_clients[j].client_fd);
+                send_message("ELIM", a_connected_clients[j].client_fd);
+                close(a_connected_clients[j].client_fd);
             }
             else
             {
-                surviving_players[index] = connected_clients[j];
+                surviving_players[index] = a_connected_clients[j];
                 index++;
             }
         }
         num_clients = num_clients - num_people_kicked;
-        *a_connected_clients = surviving_players;
+        printf("%i this guy survives\n",surviving_players[0].client_id);
+        *connected_clients = surviving_players;
         return num_clients;
     }
     else
@@ -317,7 +319,7 @@ int main (int argc, char *argv[]) {
         fprintf(stderr,"Usage: %s [port], [number of lives]\n",argv[0]);
         exit(EXIT_FAILURE);
     }
-    srand ( time(NULL) ); //set seed
+    srand ( 1306 ); //set seed
     int server_fd, client_fd, err, opt_val;
     int port = atoi(argv[1]);
     int num_lives = atoi(argv[2]);
@@ -536,7 +538,7 @@ int main (int argc, char *argv[]) {
             {
     	        calculate (dice1, dice2, connected_clients[i].move, &connected_clients[i]);
             }
-    	    num_clients = kick_player(num_clients,connected_clients);
+    	    num_clients = kick_player(num_clients,&connected_clients);
     	    if (num_clients == 1) {
 		printf("The Winner is... Player %d with %d lives left\n", connected_clients[0].client_id,connected_clients[0].num_lives);
                 write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
