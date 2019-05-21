@@ -16,7 +16,7 @@ typedef struct
     int client_id;
     int num_lives;
     int client_fd;
-    bool has_played; //Bool expression to indicate that the
+    bool has_played; //Bool expression to indicate that the state of the client
     int move; //to store move made by client
     int toParentMovePipe[2];		// Pipe child uses to write the move to parent
     int fromParentPipe[2];		// Pipe child uses to read from parent
@@ -275,7 +275,6 @@ int kick_player(int num_clients,Client *connected_clients)
         if (connected_clients[i].num_lives == 0)
         {
             num_people_kicked++;
-            break;
         }
     }
     if(num_people_kicked != num_clients) //Not a draw
@@ -289,9 +288,11 @@ int kick_player(int num_clients,Client *connected_clients)
         }
         for(int j = 0; j < num_clients; j++)
         {
+	    printf("kicking %d, clients %d\n", num_people_kicked, num_clients);
             char *result_message;
             if (connected_clients[j].num_lives == 0) //Client dead so kick them
             {
+                send_message("ELIM", connected_clients[j].client_fd);
                 close(connected_clients[j].client_fd);
             }
             else
@@ -446,12 +447,14 @@ int main (int argc, char *argv[]) {
                         char *fail_message = malloc(strlen(read_buf)+1);
                         strcpy(fail_message,read_buf);
                         num_lives--;
+/**
                         if(num_lives == 0)
                         {
                             send_message("ELIM", player.client_fd);
                             close(player.client_fd);
                             break;
                         }
+**/
                         read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
                         if(strstr(read_buf,"VICT") != NULL)
                         {
@@ -534,6 +537,7 @@ int main (int argc, char *argv[]) {
             }
     	    num_clients = kick_player(num_clients,connected_clients);
     	    if (num_clients == 1) {
+		printf("The Winner is... Player %d with %d lives left\n", connected_clients[0].client_id,connected_clients[0].num_lives);
                 write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
                 write(reject_process_fd[1],"stop",strlen("stop")+1);
                 close(connected_clients[0].client_fd);
@@ -541,12 +545,13 @@ int main (int argc, char *argv[]) {
                 exit(EXIT_SUCCESS);
     	    }
     	    else if (num_clients == 0) {	// There is a tie
+		    printf("There was a tie\n");
         		for(int i = 0; i < num_prev_clients; i++) {
                     write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT")+1);
                     write(reject_process_fd[1],"STOP",strlen("STOP")+1);
-                    close(server_fd);
                     close(connected_clients[i].client_fd);
         		}
+                close(server_fd);
                 exit(EXIT_SUCCESS);
     	    }
             else

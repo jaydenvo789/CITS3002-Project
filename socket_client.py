@@ -82,9 +82,11 @@ try:
                   print("Remaining Lives: " + str(num_lives))
               elif "VICT" in result:
                  print("You are the winner")
+                 finish = True
                  break
               elif "ELIM" in result:
                 print("You have been eliminated")
+                finish = True
                 break
               else:
                  raise UnexpectedResponseException("Unexpected Response " + result)
