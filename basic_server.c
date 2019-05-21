@@ -269,6 +269,7 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
 */
 int kick_player(int num_clients,Client *connected_clients)
 {
+    Client **a_connected_clients = &connected_clients;
     int num_people_kicked = 0;
     for(int i = 0; i < num_clients; i++)
     {
@@ -302,7 +303,7 @@ int kick_player(int num_clients,Client *connected_clients)
             }
         }
         num_clients = num_clients - num_people_kicked;
-        connected_clients = surviving_players;
+        a_connected_clients = &surviving_players;
         return num_clients;
     }
     else
