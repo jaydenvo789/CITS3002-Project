@@ -274,7 +274,7 @@ int kick_player(int num_clients,Client **connected_clients)
     int num_people_kicked = 0;
     for(int i = 0; i < num_clients; i++)
     {
-        if (a_connected_clients[i].num_lives == 0)
+        if (copy_connected_clients[i].num_lives == 0)
         {
             num_people_kicked++;
         }
@@ -292,14 +292,14 @@ int kick_player(int num_clients,Client **connected_clients)
         {
 	    printf("kicking %d, clients %d\n", num_people_kicked, num_clients);
             char *result_message;
-            if (a_connected_clients[j].num_lives == 0) //Client dead so kick them
+            if (copy_connected_clients[j].num_lives == 0) //Client dead so kick them
             {
-                send_message("ELIM", a_connected_clients[j].client_fd);
-                close(a_connected_clients[j].client_fd);
+                send_message("ELIM", copy_connected_clients[j].client_fd);
+                close(copy_connected_clients[j].client_fd);
             }
             else
             {
-                surviving_players[index] = a_connected_clients[j];
+                surviving_players[index] = copy_connected_clients[j];
                 index++;
             }
         }
