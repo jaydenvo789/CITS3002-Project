@@ -32,6 +32,7 @@ int dice1, dice2;
 */
 bool validate_message(char * message, int client_id)
 {
+    printf("%s\n",message);
     if (strlen(message) > 14) {
         printf("The packet is too long, causing it to be invalid\n");
         return false;
@@ -371,7 +372,7 @@ int main (int argc, char *argv[]) {
             Client single_client = {id_iterator,num_lives,client_fd,false,9};
             pipe(single_client.toParentMovePipe);
             pipe(single_client.fromParentPipe);
-            fcntl(*single_client.toParentMovePipe, F_SETFL, O_NONBLOCK);
+            fcntl(single_client.toParentMovePipe[0], F_SETFL, O_NONBLOCK);
             num_clients++;
             //Store a connected reference to the client
             if(num_clients == 1)
@@ -392,7 +393,7 @@ int main (int argc, char *argv[]) {
         }
         int reject_process_fd[2];
         pipe(reject_process_fd);
-        fcntl(*reject_process_fd, F_SETFL, O_NONBLOCK);
+        fcntl(reject_process_fd[0], F_SETFL, O_NONBLOCK);
         if(fork() == 0) // Child Process used to reject clients who are trying connect when game has started
         {
             char read_buf[BUFFER_SIZE];
@@ -511,10 +512,11 @@ int main (int argc, char *argv[]) {
     	        everyone_played = true;
     	        for(int i =  0; i < num_clients; i++)
                 {
+                    printf("client %i, has played? %i\n",i,connected_clients[i].has_played);
                     if(!connected_clients[i].has_played)
                     {
                         everyone_played = false;
-                        bytes_read = read(connected_clients[i].toParentMovePipe[0],&connected_clients[i].move,1);
+                        bytes_read = read(connected_clients[i].toParentMovePipe[0],&connected_clients[i].move,sizeof(int));
                         if(bytes_read > 0)
                         {
                             connected_clients[i].has_played = true;
@@ -551,6 +553,7 @@ int main (int argc, char *argv[]) {
                     connected_clients[i].has_played = false;
                     connected_clients[i].move = 9;
                 }
+                printf("-----------------------\n");
             }
     	}
     }
