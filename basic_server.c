@@ -9,7 +9,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #define BUFFER_SIZE 1024
-
+#define JOIN_WAITING_TIME 10
+#define ROUND_WAITING_TIME 10
 typedef struct
 {
     char *client_id;
@@ -22,6 +23,13 @@ typedef struct
 } Client;
 
 int dice1, dice2;
+
+/*
+*Validates that packets received from a client are in the correct format
+*@param client_id: ID of the client who sent the packet
+*@param message: Message received from the client
+*@return bool: True if message is in correct format, else false
+*/
 bool validate_message(char * message, char *client_id)
 {
     if (strlen(message) > 14) {
@@ -56,9 +64,6 @@ bool validate_message(char * message, char *client_id)
         }
         if (strstr(message,"CON") != NULL) {
             sprintf(packet,"%s,MOV,CON,", client_id);
-            printf("%s\n",client_id);
-            printf("%s\n",message);
-            printf("%s\n",packet);
             if(strstr(message, packet) == NULL) {
                 printf("Invalid CON move packet\n");
                 return false;
@@ -89,6 +94,11 @@ void send_message(char *message, int destination_fd)
     sleep(1);
 }
 
+/*
+*Receives message sent from client
+*@sender_fd - Clients socket fd
+*@return char* - Message from client
+*/
 char* receive_message(int sender_fd)
 {
     char *buf = calloc(BUFFER_SIZE, sizeof(char)); // Clear our buffer so we don't accidentally send/print garbage
@@ -106,7 +116,12 @@ char* receive_message(int sender_fd)
     return buf;
 }
 
-// Function called by child to interpret message
+/*
+*Interprets message sent from client
+*@param message: message sent from client
+*@param Client: Struct containing client information
+*@return int representing move made by client
+*/
 int parse_message(char *message, Client client )
 {
     int enum_value = 9;		// Default, empty value
@@ -234,13 +249,13 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
     if (failed_round)
     {
         strcat(result_message,",FAIL");
-        write(client->fromParentPipe[1],result_message,strlen(result_message));
+        write(client->fromParentPipe[1],result_message,strlen(result_message)+1);
         client->num_lives--;
         printf("Player %s has this failed round, lives left: %d\n", client->client_id, client->num_lives);
     }
     else {
         strcat(result_message,",PASS");
-        write(client->fromParentPipe[1],result_message,strlen(result_message));
+        write(client->fromParentPipe[1],result_message,strlen(result_message)+1);
         printf("Player %s has survived... this round\n",client->client_id);
     }
 }
@@ -329,7 +344,6 @@ int main (int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     printf("Server is listening on %d\n", port);
-
     time_t timer_start,timer_end;
     double elapsed;
     int max_clients = 10;
@@ -342,7 +356,7 @@ int main (int argc, char *argv[]) {
         while (num_clients <= max_clients) {
             time(&timer_end);
             elapsed = difftime(timer_end,timer_start);
-            if(elapsed > 6)
+            if(elapsed > JOIN_WAITING_TIME)
             {
                 break;
             }
@@ -355,10 +369,6 @@ int main (int argc, char *argv[]) {
             id_iterator = (id_iterator + 1) % 10;
             sprintf(client_id, "%d", id_iterator); 			// Set client ids
             Client single_client = {client_id,num_lives,client_fd,false,9};
-            if(num_clients == 1)
-            {
-                printf("%s\n",connected_clients[0].client_id);
-            }
             pipe(single_client.toParentMovePipe);
             pipe(single_client.fromParentPipe);
             fcntl(*single_client.toParentMovePipe, F_SETFL, O_NONBLOCK);
@@ -380,23 +390,36 @@ int main (int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
         }
-        if(fork() == 0)
+        int reject_process_fd[2];
+        pipe(reject_process_fd);
+        fcntl(*reject_process_fd, F_SETFL, O_NONBLOCK);
+        if(fork() == 0) // Child Process used to reject clients who are trying connect when game has started
         {
+            char read_buf[BUFFER_SIZE];
+            printf("%i pid of the rejector\n",getpid());
             while(true)
             {
+                sleep(1);
+                int bytes_read = read(reject_process_fd[0],read_buf,BUFFER_SIZE);
+                if(bytes_read > 0 && strstr("stop",read_buf) != NULL)
+                {
+                    close(server_fd);
+                    exit(EXIT_SUCCESS);
+                }
                 client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
                 if (client_fd < 0) {
                     // printf("%f\n",elapsed);
                     continue;
                 }
                 send_message("REJECT",client_fd);
-                sleep(1);
             }
+
         }
     	for(int i = 0; i < num_clients; i++) 		// Create a child for each client
     	{
     	    if(fork() == 0)				// If child
     	    {
+                printf("%i pid of the client\n",getpid());
                 char read_buf[BUFFER_SIZE];
         		printf("I am a child\n");
         		Client player = connected_clients[i];	// Set the current player
@@ -453,8 +476,8 @@ int main (int argc, char *argv[]) {
                             send_message(pass_message, player.client_fd);
                         }
                     }
-
         		}
+                close(server_fd);
                 exit(EXIT_SUCCESS);
     	    }
     	}
@@ -462,6 +485,8 @@ int main (int argc, char *argv[]) {
     	int num_prev_clients;		// Number of clients in previous round
         int bytes_read;
         bool everyone_played;
+        printf("%i pid of the parent\n",getpid());
+
     // Parent Loop
     	while (true) {			// Infinite loop while game is runnning
             for(int i = 0; i < num_clients;i++)
@@ -479,11 +504,10 @@ int main (int argc, char *argv[]) {
     	    while (everyone_played == false) {	// Goes through each client, if at least one is not ready, set it to false
                 time(&time_current);
                 elapsed_time = difftime(time_current, time_start);
-                if(elapsed_time > 10)
+                if(elapsed_time > ROUND_WAITING_TIME)
                 {
                     break;
                 }
-                //add timer for losing life for not doing move
     	        everyone_played = true;
     	        for(int i =  0; i < num_clients; i++)
                 {
@@ -497,6 +521,7 @@ int main (int argc, char *argv[]) {
                         }
                     }
     	        }
+                sleep(1);
     	    }
             for(int i = 0; i <num_clients;i++)
             {
@@ -505,13 +530,15 @@ int main (int argc, char *argv[]) {
     	    num_clients = kick_player(num_clients,connected_clients);
     	    if (num_clients == 1) {
                 write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
+                write(reject_process_fd[1],"stop",strlen("stop")+1);
                 close(connected_clients[0].client_fd);
                 close(server_fd);
                 exit(EXIT_SUCCESS);
     	    }
     	    else if (num_clients == 0) {	// There is a tie
         		for(int i = 0; i < num_prev_clients; i++) {
-                    write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT"));
+                    write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT")+1);
+                    write(reject_process_fd[1],"STOP",strlen("STOP")+1);
                     close(server_fd);
                     close(connected_clients[i].client_fd);
         		}
