@@ -179,7 +179,7 @@ int parse_message(char *message, Client client )
         send_message("You have been caught cheating\n"
                      "Kicking you out\n",
                        client.client_fd);
-        exit(EXIT_FAILURE);
+        return 200;
     }
     return enum_value;
 }
@@ -260,6 +260,53 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
     }
 }
 
+int kick_cheating_player(int num_clients,Client **connected_clients)
+{
+
+    Client *copy_connected_clients = *connected_clients;
+    int num_people_kicked = 0;
+    for(int i = 0; i < num_clients; i++)
+    {
+        if (copy_connected_clients[i].move == 200)
+        {
+            num_people_kicked++;
+        }
+    }
+    if(num_people_kicked != num_clients) //Not a draw
+    {
+        Client *surviving_players = calloc(num_clients-num_people_kicked,sizeof(Client));
+        int index = 0;
+        if(surviving_players == NULL)
+        {
+            printf("Unable to allocate memory\n");
+            exit(EXIT_FAILURE);
+        }
+        for(int j = 0; j < num_clients; j++)
+        {
+
+            char *result_message;
+            if (copy_connected_clients[j].move == 200) //Client dead so kick them
+            {
+	        printf("kicking %d, clients %d for cheating\n", num_people_kicked, num_clients);
+                //close(copy_connected_clients[j].client_fd);
+            }
+            else
+            {
+                surviving_players[index] = copy_connected_clients[j];
+                index++;
+            }
+        }
+        num_clients = num_clients - num_people_kicked;
+        printf("%i this guy didn't cheat\n",surviving_players[0].client_id);
+        *connected_clients = surviving_players;
+        return num_clients;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 /*
 *Kicks player out by removing them from pointer containing connected clients
 *Will not kick players out if draw
@@ -320,7 +367,7 @@ int main (int argc, char *argv[]) {
         fprintf(stderr,"Usage: %s [port], [number of lives]\n",argv[0]);
         exit(EXIT_FAILURE);
     }
-    srand ( 1306 ); //set seed
+    srand ( time(NULL) ); //set seed
     int server_fd, client_fd, err, opt_val;
     int port = atoi(argv[1]);
     int num_lives = atoi(argv[2]);
@@ -443,6 +490,13 @@ int main (int argc, char *argv[]) {
         		        response = receive_message(player.client_fd);
         		    }
                     int parsed_response = parse_message(response, player);
+		    if (parsed_response == 200) {			// Player cheated
+			printf("CHEATING\n");
+			send_message("ELIM", player.client_fd);
+			write(player.toParentMovePipe[1],&parsed_response, sizeof(int));
+			close(player.client_fd);
+			break;
+		    }
 		    printf("parsed response %i\n", parsed_response);
         		    write(player.toParentMovePipe[1],&parsed_response, sizeof(int));
                     read(player.fromParentPipe[0],read_buf,BUFFER_SIZE);
@@ -506,7 +560,6 @@ int main (int argc, char *argv[]) {
             time_t time_current, time_start;
             double elapsed_time;
             everyone_played = false;
-    	    num_prev_clients = num_clients;
     	    dice1 = ((rand() % 6) + 1) ;
     	    dice2 = ((rand() % 6) + 1) ;
             time(&time_start);
@@ -533,6 +586,8 @@ int main (int argc, char *argv[]) {
                     }
     	        }
     	    }
+	    num_clients = kick_cheating_player(num_clients,&connected_clients);
+	    num_prev_clients = num_clients;
             for(int i = 0; i <num_clients;i++)
             {
     	        calculate (dice1, dice2, connected_clients[i].move, &connected_clients[i]);
