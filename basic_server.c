@@ -133,7 +133,7 @@ int parse_message(char *message, Client client )
             char *welcome_message = calloc(bytes_required, sizeof(char));
             if(welcome_message != NULL)
             {
-                sprintf("WELCOME,%d",client.client_id);
+                sprintf(welcome_message,"WELCOME,%i",client.client_id);
                 send_message(welcome_message, client.client_fd);
                 printf("Sent welcome message!\n");
             }
