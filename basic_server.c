@@ -593,14 +593,13 @@ int main (int argc, char *argv[]) {
     	    while (everyone_played == false) {	// Goes through each client, if at least one is not ready, set it to false
                 time(&time_current);
                 elapsed_time = difftime(time_current, time_start);
-                if(elapsed_time > ROUND_WAITING_TIME)
+                if(elapsed_time > ROUND_WAITING_TIME) //Break if elapsed time is greater than round timeout
                 {
                     break;
                 }
     	        everyone_played = true;
     	        for(int i =  0; i < num_clients; i++)
                 {
-                    // printf("client %i, has played? %i\n",i,connected_clients[i].has_played);
                     if(!connected_clients[i].has_played)
                     {
                         everyone_played = false;
@@ -612,13 +611,13 @@ int main (int argc, char *argv[]) {
                     }
     	        }
     	    }
-	        num_clients = kick_cheating_player(num_clients,&connected_clients);
+	        num_clients = kick_cheating_player(num_clients,&connected_clients); //Kick cheating players
 	        num_prev_clients = num_clients;
             for(int i = 0; i <num_clients;i++)
             {
     	        calculate (dice1, dice2, connected_clients[i].move, &connected_clients[i]);
             }
-    	    num_clients = kick_player(num_clients,&connected_clients);
+    	    num_clients = kick_player(num_clients,&connected_clients); //Kick players with 0 lives
     	    if (num_clients == 1) {
 	        	printf("The Winner is... Player %d with %d lives left\n", connected_clients[0].client_id,connected_clients[0].num_lives);
                 write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
@@ -628,7 +627,7 @@ int main (int argc, char *argv[]) {
                 exit(EXIT_SUCCESS);
     	    }
     	    else if (num_clients == 0) {	// There is a tie
-		    printf("There was a tie\n");
+		        printf("There was a tie\n");
         		for(int i = 0; i < num_prev_clients; i++) {
                     write(connected_clients[i].fromParentPipe[1],"VICT",strlen("VICT")+1);
                     write(reject_process_fd[1],"stop",strlen("stop")+1);
@@ -637,10 +636,11 @@ int main (int argc, char *argv[]) {
                 close(server_fd);
                 exit(EXIT_SUCCESS);
     	    }
-            else
+            else //Game is still going
             {
                 for(int i = 0; i < num_clients;i++)
                 {
+                    //Tell child processes not to die and continue receiving messages
                     write(connected_clients[i].fromParentPipe[1],"continue",strlen("continue")+1);
                     connected_clients[i].has_played = false;
                     connected_clients[i].move = 9;
