@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #define BUFFER_SIZE 1024
-#define JOIN_WAITING_TIME 10
+#define JOIN_WAITING_TIME 30
 #define ROUND_WAITING_TIME 10
 typedef struct
 {
@@ -387,7 +387,7 @@ int main (int argc, char *argv[]) {
         fprintf(stderr,"Usage: %s [port], [number of lives]\n",argv[0]);
         exit(EXIT_FAILURE);
     }
-    srand ( 1); //set seed
+    srand(time(NULL)); //set seed
     int server_fd, client_fd, err, opt_val;
     int port = atoi(argv[1]);
     int num_lives = atoi(argv[2]);
@@ -426,7 +426,7 @@ int main (int argc, char *argv[]) {
     while (true) {
         socklen_t client_len = sizeof(client);
         char client_id[2];
-        while (elapsed < JOIN_WAITING_TIME) {
+        while (elapsed < JOIN_WAITING_TIME && num_clients < 1000) { //Cant have 4 digit id(i.e 1000+ players)
             time(&timer_end);
             elapsed = difftime(timer_end,timer_start);
             client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
@@ -434,8 +434,6 @@ int main (int argc, char *argv[]) {
                 // printf("%f\n",elapsed);
                 continue;
             }
-            // snprintf(client_id, 2, "%d", id_iterator);
-            // sprintf(client_id, "%d", id_iterator); 			// Set client ids
             Client single_client = {id_iterator,num_lives,client_fd,false,9};
             id_iterator = (id_iterator + 1);
             pipe(single_client.toParentMovePipe);
