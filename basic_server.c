@@ -176,9 +176,9 @@ int parse_message(char *message, Client client )
 
     else
     {
-        send_message("You have been caught cheating\n"
-                     "Kicking you out\n",
-                       client.client_fd);
+        // send_message("You have been caught cheating\n"
+        //              "Kicking you out\n",
+        //                client.client_fd);
         return 200;
     }
     return enum_value;
@@ -515,7 +515,6 @@ int main (int argc, char *argv[]) {
                         else if(strstr(read_buf,"ELIM") != NULL)
                         {
                             close(player.client_fd);
-                            printf("YA SUPPOSE TO ELAVE\n");
                             break;
                         }
                         else
@@ -586,15 +585,15 @@ int main (int argc, char *argv[]) {
                     }
     	        }
     	    }
-	    num_clients = kick_cheating_player(num_clients,&connected_clients);
-	    num_prev_clients = num_clients;
+	        num_clients = kick_cheating_player(num_clients,&connected_clients);
+	        num_prev_clients = num_clients;
             for(int i = 0; i <num_clients;i++)
             {
     	        calculate (dice1, dice2, connected_clients[i].move, &connected_clients[i]);
             }
     	    num_clients = kick_player(num_clients,&connected_clients);
     	    if (num_clients == 1) {
-		printf("The Winner is... Player %d with %d lives left\n", connected_clients[0].client_id,connected_clients[0].num_lives);
+	        	printf("The Winner is... Player %d with %d lives left\n", connected_clients[0].client_id,connected_clients[0].num_lives);
                 write(connected_clients[0].fromParentPipe[1],"VICT",strlen("VICT"));
                 write(reject_process_fd[1],"stop",strlen("stop")+1);
                 close(connected_clients[0].client_fd);
