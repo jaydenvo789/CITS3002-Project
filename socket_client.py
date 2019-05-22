@@ -74,6 +74,7 @@ try:
               result = recv_message(sock)
               if result.endswith("PASS"):
                 print("You have guessed correctly")
+                print("Remaining Lives: " + str(num_lives))
               elif result.endswith("FAIL"):
                   num_lives = int(num_lives) - 1
                   print("You have guessed wrongly")

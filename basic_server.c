@@ -367,7 +367,7 @@ int main (int argc, char *argv[]) {
         fprintf(stderr,"Usage: %s [port], [number of lives]\n",argv[0]);
         exit(EXIT_FAILURE);
     }
-    srand ( time(NULL) ); //set seed
+    srand ( 1); //set seed
     int server_fd, client_fd, err, opt_val;
     int port = atoi(argv[1]);
     int num_lives = atoi(argv[2]);
@@ -491,7 +491,7 @@ int main (int argc, char *argv[]) {
         		    }
                     int parsed_response = parse_message(response, player);
 		    if (parsed_response == 200) {			// Player cheated
-			printf("CHEATING\n");
+			printf("Cheating Player - %i\n",player.client_id);
 			send_message("ELIM", player.client_fd);
 			write(player.toParentMovePipe[1],&parsed_response, sizeof(int));
 			close(player.client_fd);
@@ -519,6 +519,7 @@ int main (int argc, char *argv[]) {
                         }
                         else
                         {
+                            printf("FAILED LOL\n");
                             send_message(fail_message, player.client_fd);
                         }
                     }
