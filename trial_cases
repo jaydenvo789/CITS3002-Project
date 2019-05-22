@@ -1,0 +1,19 @@
+Trial Case:
+
+3 clients (1 cheating)
+	- in final round, cheater cheats and the 2 players lose
+	- cheater should be kicked and they draw
+
+4 clients
+	1 cheats round 1
+	1 cheats round 2
+	2 clients let play normal
+
+4 clients
+	2 CHEAT AT THE SAMe time
+	2 clients left play normal
+4 cleints
+	1 cheats round 1
+	3 play normal
+	1 cheats
+	2 plays normal
