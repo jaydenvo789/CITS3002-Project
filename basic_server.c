@@ -130,7 +130,7 @@ int parse_message(char *message, Client client )
     {
         if(strstr(message,"INIT") != NULL)
         {
-            int bytes_required = strlen("WELCOME,") + sizeof(char) + 1;
+            int bytes_required = strlen("WELCOME,") + sizeof(char)*3 + 1;
             char *welcome_message = calloc(bytes_required, sizeof(char));
             if(welcome_message != NULL)
             {
@@ -417,31 +417,27 @@ int main (int argc, char *argv[]) {
     }
     printf("Server is listening on %d\n", port);
     time_t timer_start,timer_end;
-    double elapsed;
+    double elapsed = 0;
     int max_clients = 10;
     int num_clients = 0;
-    int id_iterator = 0;
+    int id_iterator = 100;
     Client *connected_clients;
     time(&timer_start);
     while (true) {
         socklen_t client_len = sizeof(client);
         char client_id[2];
-        while (num_clients <= max_clients) {
+        while (elapsed < JOIN_WAITING_TIME) {
             time(&timer_end);
             elapsed = difftime(timer_end,timer_start);
-            if(elapsed > JOIN_WAITING_TIME)
-            {
-                break;
-            }
             client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
             if (client_fd < 0) {
                 // printf("%f\n",elapsed);
                 continue;
             }
-            id_iterator = (id_iterator + 1) % 10;
             // snprintf(client_id, 2, "%d", id_iterator);
             // sprintf(client_id, "%d", id_iterator); 			// Set client ids
             Client single_client = {id_iterator,num_lives,client_fd,false,9};
+            id_iterator = (id_iterator + 1);
             pipe(single_client.toParentMovePipe);
             pipe(single_client.fromParentPipe);
             fcntl(single_client.toParentMovePipe[0], F_SETFL, O_NONBLOCK);
@@ -466,6 +462,17 @@ int main (int argc, char *argv[]) {
         int reject_process_fd[2];
         pipe(reject_process_fd);
         fcntl(reject_process_fd[0], F_SETFL, O_NONBLOCK);
+        if(num_clients < 4) //Not Enough Players
+        {
+            for(int j = 0; j < num_clients; j++)
+            {
+                send_message("CANCEL",connected_clients[j].client_fd);
+                close(connected_clients[j].client_fd);
+            }
+            close(server_fd);
+            printf("Not enough players exiting......");
+            exit(EXIT_SUCCESS);
+        }
         if(fork() == 0) // Child Process used to reject clients who are trying connect when game has started
         {
             char read_buf[BUFFER_SIZE];
