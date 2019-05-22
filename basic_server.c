@@ -176,14 +176,16 @@ int parse_message(char *message, Client client )
 
     else
     {
-        // send_message("You have been caught cheating\n"
-        //              "Kicking you out\n",
-        //                client.client_fd);
         return 200;
     }
     return enum_value;
 }
 
+/*
+*Sends vicory message to client
+*@param Client: Struct winning message is to be sent to
+*@return void
+*/
 void send_victory (Client client)
 {
     int bytes_required = strlen("VICT") + 1;
@@ -195,6 +197,14 @@ void send_victory (Client client)
     }
 }
 
+/*
+*Calculates the new life of a client
+*@param dice1: Value of Dice 1
+*@param dice2: Value of Dice 2
+*@param enum_value: int representing move made by client
+*@param Client: The Client
+*@return void
+*/
 void calculate (int dice1, int dice2, int enum_value, Client* client)
 {
     // enumvalues - 0 = Odd, 1-6 = Choice of Dice, 7 = Doubles, 8 = Even
@@ -248,18 +258,28 @@ void calculate (int dice1, int dice2, int enum_value, Client* client)
 
     if (failed_round)
     {
+        //Pipe to Child process that client had failed this round
         strcat(result_message,",FAIL");
         write(client->fromParentPipe[1],result_message,strlen(result_message)+1);
         client->num_lives--;
         printf("Player %d has this failed round, lives left: %d\n", client->client_id, client->num_lives);
     }
     else {
+        //Pipe to Child process that client had passed this round
         strcat(result_message,",PASS");
         write(client->fromParentPipe[1],result_message,strlen(result_message)+1);
         printf("Player %d has survived... this round\n",client->client_id);
     }
 }
 
+/*
+*Determine which Client has cheated and kick them out.
+*@param dice1: Value of Dice 1
+*@param dice2: Value of Dice 2
+*@param enum_value: int representing move made by client
+*@param Client: The Client
+*@return void
+*/
 int kick_cheating_player(int num_clients,Client **connected_clients)
 {
 
@@ -272,7 +292,7 @@ int kick_cheating_player(int num_clients,Client **connected_clients)
             num_people_kicked++;
         }
     }
-    if(num_people_kicked != num_clients) //Not a draw
+    if(num_people_kicked != num_clients)
     {
         Client *surviving_players = calloc(num_clients-num_people_kicked,sizeof(Client));
         int index = 0;
@@ -285,10 +305,10 @@ int kick_cheating_player(int num_clients,Client **connected_clients)
         {
 
             char *result_message;
-            if (copy_connected_clients[j].move == 200) //Client dead so kick them
+            if (copy_connected_clients[j].move == 200) //Client has made a cheating move
             {
-	        printf("kicking %d, clients %d for cheating\n", num_people_kicked, num_clients);
-                //close(copy_connected_clients[j].client_fd);
+	            printf("kicking %d, clients %d for cheating\n", num_people_kicked, num_clients);
+                close(copy_connected_clients[j].client_fd);
             }
             else
             {
@@ -297,7 +317,7 @@ int kick_cheating_player(int num_clients,Client **connected_clients)
             }
         }
         num_clients = num_clients - num_people_kicked;
-        printf("%i this guy didn't cheat\n",surviving_players[0].client_id);
+        printf("this guy(id %i) didn't cheat\n",surviving_players[0].client_id);
         *connected_clients = surviving_players;
         return num_clients;
     }
@@ -519,7 +539,6 @@ int main (int argc, char *argv[]) {
                         }
                         else
                         {
-                            printf("FAILED LOL\n");
                             send_message(fail_message, player.client_fd);
                         }
                     }
@@ -619,7 +638,6 @@ int main (int argc, char *argv[]) {
                     connected_clients[i].has_played = false;
                     connected_clients[i].move = 9;
                 }
-                printf("-----------------------\n");
             }
     	}
     }

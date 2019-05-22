@@ -20,9 +20,9 @@ def make_move(client_id):
     if move == 1:
         return client_id+",MOV,EVEN123"
     elif move == 2:
-        return client_id+",MOV,ODD322"
+        return client_id+",MOV,ODD"
     elif move == 3:
-        return client_id+",MOV,DOUB13131313"
+        return client_id+",MOV,DOUB"
     else:
         dice_number = int(input("Select a number from 1-6: "))
         while dice_number < 1 or dice_number > 6:
