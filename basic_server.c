@@ -474,7 +474,7 @@ int main (int argc, char *argv[]) {
             {
                 sleep(1);
                 int bytes_read = read(reject_process_fd[0],read_buf,BUFFER_SIZE);
-                if(bytes_read > 0 && strstr("stop",read_buf) != NULL)
+                if(bytes_read > 0 && strstr("stop",read_buf) != NULL) //If Parent signals for this process to die
                 {
                     close(server_fd);
                     exit(EXIT_SUCCESS);
