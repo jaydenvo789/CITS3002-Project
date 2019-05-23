@@ -1,8 +1,9 @@
 import socket
 import sys
 from time import sleep
-
+import random
 current_message = ""
+
 class UnexpectedResponseException(Exception):
     """Raised when client receives an unexpected response"""
     pass
@@ -13,10 +14,7 @@ def make_move(client_id):
     :param client_id: Id of client making the move
     :returns: String representation of move made by client
     """
-    move = int(input('Select a move:\n 1 - Even\n 2 - Odd\n \
-                      3 - Doubles\n 4 - Contains "n" \n Move: '))
-    while move != 1 and move != 2 and move != 3 and move != 4:
-        move = input('Invalid input. Please re-enter move: ')
+    move = random.randint(1,4)
     if move == 1:
         return client_id+",MOV,EVEN"
     elif move == 2:
@@ -24,10 +22,9 @@ def make_move(client_id):
     elif move == 3:
         return client_id+",MOV,DOUB"
     else:
-        dice_number = int(input("Select a number from 1-6: "))
+        dice_number = random.randint(1,6)
         while dice_number < 1 or dice_number > 6:
             print("Value is not between 1-6")
-            dice_number = int(input("Select a number from 1-6: "))
         return client_id+",MOV,CON,"+ str(dice_number)
 
 def recv_message(socket):
@@ -69,9 +66,12 @@ try:
               print("Starting Number of Lives: " + str(num_lives))
               result = ""
               finish = False
+              round = 1
               while num_lives > 0:
-                  move = make_move(client_id)
-                  sock.sendall(move.encode())
+                  print(round)
+                  move_single = make_move(client_id)
+                  print(move_single)
+                  sock.sendall(move_single.encode())
                   result = recv_message(sock)
                   if result.endswith("PASS"):
                     print("You have guessed correctly")
@@ -90,6 +90,7 @@ try:
                     break
                   else:
                      raise UnexpectedResponseException("Unexpected Response " + result)
+                  round = round +1
           #Obtained an unexpected response
           else:
               raise UnexpectedResponseException("Unexpected Response " + game_status)

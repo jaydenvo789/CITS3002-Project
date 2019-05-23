@@ -9,8 +9,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #define BUFFER_SIZE 1024
-#define JOIN_WAITING_TIME 10
-#define ROUND_WAITING_TIME 15
+#define JOIN_WAITING_TIME 30
+#define ROUND_WAITING_TIME 20
 typedef struct
 {
     int client_id;
@@ -592,6 +592,7 @@ int main(int argc, char *argv[])
                         {
                             send_message(fail_message, player.client_fd);
                         }
+                        free(fail_message);
                     }
                     if (strstr(read_buf, "PASS") != NULL)
                     {
@@ -654,6 +655,7 @@ int main(int argc, char *argv[])
                         if (bytes_read > 0)
                         {
                             connected_clients[i].has_played = true;
+                            printf("Client %i has made a move\n",connected_clients[i].client_id);
                         }
                     }
                 }
@@ -690,6 +692,7 @@ int main(int argc, char *argv[])
             }
             else //Game is still going
             {
+                printf("NUM CLIENTS: %i\n",num_clients);
                 for (int i = 0; i < num_clients; i++)
                 {
                     //Tell child processes not to die and continue receiving messages
